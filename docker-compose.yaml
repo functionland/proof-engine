@@ -1,0 +1,35 @@
+version: '3.6'
+services:
+  sf-node:
+    image: 'sugarfunge.azurecr.io/node:latest'
+    restart: always
+    network_mode: host
+    command: ["--chain=./customSpecRaw.json", "--execution=wasm", "--port=30334", "--ws-port", "9944", "--ws-external", "--rpc-external", "--rpc-cors", "all", "--bootnodes", "/ip4/34.229.178.96/tcp/30334/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"]
+    volumes:
+      - ./rocksdb/local:/root/.local/share/sugarfunge-node/chains/local_testnet/db/full
+      - ./customSpecRaw.json:/customSpecRaw.json
+  sf-api:
+    image: 'sugarfunge.azurecr.io/api:latest'
+    restart: always
+    network_mode: host
+    command: ["-l", "http://0.0.0.0:4000", "-s", "ws://127.0.0.1:9944"]
+  ipfs:
+    image: 'ipfs/go-ipfs:v0.13.0'
+    restart: always
+    command: ["daemon", "--migrate=true", "--agent-version-suffix=docker", "--enable-pubsub-experiment"]
+    ports:
+      - "4001:4001"
+      - "8001:8080"
+      - "5001:5001"
+    volumes:
+      - ./ipfs:/data/ipfs
+      - ./swarm.key:/data/ipfs/swarm.key
+  fulafunge:
+    image: 'fula-funge:headless'
+    build:
+      context: ./
+      dockerfile: docker/Dockerfile
+    restart: always
+    network_mode: "host"
+    environment:
+      RUST_LOG: 'warn,fula_funge=info'

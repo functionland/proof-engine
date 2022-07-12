@@ -1,0 +1,15 @@
+.DS_Store
+README.md
+/docker
+# docker-compose
+docker-compose.yaml
+customSpec.json
+customSpecRaw.json
+swarm.key
+/ipfs
+/rocksdb
+/target
+# Keep context small. Remove to build the nvidia image.
+/assets/fonts
+/assets/models
+/assets/shaders

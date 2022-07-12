@@ -1,0 +1,2 @@
+assets/models/** filter=lfs diff=lfs merge=lfs -text
+assets/sensors/** filter=lfs diff=lfs merge=lfs -text
