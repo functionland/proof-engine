@@ -1,21 +1,21 @@
 version: '3.6'
 services:
   sf-node-alice:
-    image: 'sugarfunge.azurecr.io/node:latest'
+    image: 'functionland/sugarfunge-node:latest'
     restart: always
     network_mode: 'host'
     command: ["--alice", "--port=30334", "--ws-port=9944", "--prometheus-port=9091", "--ws-external", "--rpc-external", "--prometheus-external", "--rpc-cors", "all"]
     volumes:
       - ./rocksdb/alice:/root/.local/share/sugarfunge-node/chains/local_testnet/db/full
   sf-node-bob:
-    image: 'sugarfunge.azurecr.io/node:latest'
+    image: 'functionland/sugarfunge-node:latest'
     restart: always
     network_mode: 'host'
     command: ["--bob", "--port=30335", "--ws-port=9945", "--ws-external", "--rpc-external", "--rpc-cors", "all", "--bootnodes", "/ip4/127.0.0.1/tcp/30334/p2p/12D3KooWGzN9EZLNkxEVeApishpq8d3pzChPmw9jQ9kra3csTAhk"]
     volumes:
       - ./rocksdb/bob:/root/.local/share/sugarfunge-node/chains/local_testnet/db/full
   sf-api:
-    image: 'sugarfunge.azurecr.io/api:latest'
+    image: 'functionland/sugarfunge-api:latest'
     restart: always
     network_mode: 'host'
     command: ["-l", "http://0.0.0.0:4000", "-s", "ws://127.0.0.1:9944"]
