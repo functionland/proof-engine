@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libatk1.0-dev \
         libglib2.0-dev
 
-WORKDIR /fula-funge
-COPY . /fula-funge
+WORKDIR /proof-engine
+COPY . /proof-engine
 RUN cargo build --features headless --locked --release
 
-FROM ubuntu:22.04
+FROM debian:bullseye
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libasound2
@@ -29,15 +29,13 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./assets/sensors /home/$USERNAME/assets/sensors
-COPY --from=builder /fula-funge/target/release/fula-funge /home/$USERNAME/
+COPY --from=builder /proof-engine/target/release/proof-engine /home/$USERNAME/
 
-RUN chown ${USER_UID}:${USER_GID} /home/$USERNAME/assets
-RUN chown ${USER_UID}:${USER_GID} /home/$USERNAME/fula-funge
+RUN chown ${USER_UID}:${USER_GID} /home/$USERNAME/proof-engine
 
 USER $USERNAME
 ENV HOME /home/$USERNAME
 WORKDIR $HOME
 
-ENTRYPOINT ["./fula-funge"]
+ENTRYPOINT ["./proof-engine"]
 CMD ["//Alice", "--pool-id", "1000000"]

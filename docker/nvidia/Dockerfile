@@ -1,6 +1,6 @@
 FROM paritytech/ci-linux:production AS builder
-WORKDIR /fula-funge
-COPY . /fula-funge
+WORKDIR /proof-engine
+COPY . /proof-engine
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         pkg-config \
@@ -55,13 +55,13 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the fula-funge executable and assets
+# Copy the proof-engine executable and assets
 
-COPY --from=builder /fula-funge/target/release/fula-funge /home/$USERNAME/
+COPY --from=builder /proof-engine/target/release/proof-engine /home/$USERNAME/
 COPY ./assets /home/$USERNAME/assets
 
 RUN chown ${USER_UID}:${USER_GID} /home/$USERNAME/assets
-RUN chown ${USER_UID}:${USER_GID} /home/$USERNAME/fula-funge
+RUN chown ${USER_UID}:${USER_GID} /home/$USERNAME/proof-engine
 
 USER $USERNAME
 ENV HOME /home/$USERNAME
@@ -70,6 +70,6 @@ WORKDIR $HOME
 # Switch back to dialog for any ad-hoc use of apt-get
 ENV DEBIAN_FRONTEND=
 
-ENTRYPOINT ["./fula-funge"]
+ENTRYPOINT ["./proof-engine"]
 
 CMD ["//Alice", "--pool-id", "1000000"]
