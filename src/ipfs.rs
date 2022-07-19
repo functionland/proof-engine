@@ -69,7 +69,6 @@ pub fn launch(
             info!("repo vers: {}", repo_stat.version);
 
             let mut root_hash = String::from("0");
-            let mut hash_changed = false;
 
             loop {
                 let root_stat = client.files_stat("/").await.unwrap();
@@ -77,7 +76,6 @@ pub fn launch(
 
                 if root_hash != root_stat.hash {
                     root_hash = root_stat.hash.clone();
-                    hash_changed = true;
                     info!("root   hash: {}", root_stat.hash);
                     info!("root   size: {}", root_stat.size);
                     info!("root blocks: {}", root_stat.blocks);
@@ -116,12 +114,7 @@ pub fn launch(
                 };
 
                 ipfs_tx.send(proof.clone()).unwrap();
-
-                if hash_changed {
-                    sugar_tx.send(proof.clone()).unwrap();
-                }
-
-                hash_changed = false;
+                sugar_tx.send(proof.clone()).unwrap();
 
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
