@@ -156,7 +156,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                     "asset/create_class",
                     asset::CreateClassInput {
                         seed: cmd_opts.operator.clone(),
-                        owner: seeded.account.clone(),
+                        owner: operator_account.account.clone(),
                         class_id,
                         metadata: json!({"fula":{"desc": "Proof engine token"}}),
                     },
@@ -176,7 +176,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 let create_asset: asset::CreateOutput = req(
                     "asset/create",
                     asset::CreateInput {
-                        seed: seeded.seed.clone(),
+                        seed: operator_account.seed.clone(),
                         class_id,
                         asset_id,
                         metadata: json!({"ipfs":{"root_hash": "0"}}),
@@ -224,7 +224,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                             let mint: asset::MintOutput = match req(
                                 "asset/mint",
                                 asset::MintInput {
-                                    seed: seeded.seed.clone(),
+                                    seed: operator_account.seed.clone(),
                                     class_id,
                                     asset_id,
                                     to: seeded.account.clone(),
@@ -253,7 +253,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                             let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
                                 "asset/update_metadata",
                                 asset::UpdateMetadataInput {
-                                    seed: seeded.seed.clone(),
+                                    seed: operator_account.seed.clone(),
                                     class_id,
                                     asset_id,
                                     metadata: metadata.clone(),
