@@ -235,7 +235,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                             {
                                 Ok(mint) => mint,
                                 Err(err) => {
-                                    error!("{:#?}", err);
+                                    error!("mint: {:#?}", err);
                                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                                     continue;
                                 }

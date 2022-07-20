@@ -60,7 +60,7 @@ pub fn launch(
                 let peer = match client.id(None).await {
                     Ok(peer) => peer,
                     Err(err) => {
-                        error!("{:#?}", err);
+                        error!("peer: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
@@ -69,7 +69,7 @@ pub fn launch(
                 let _res = match client.log_level(Logger::All, LoggingLevel::Error).await {
                     Ok(log) => log,
                     Err(err) => {
-                        error!("{:#?}", err);
+                        error!("logger setup: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
@@ -78,7 +78,7 @@ pub fn launch(
                 let repo_stat = match client.stats_repo().await {
                     Ok(repo_stat) => repo_stat,
                     Err(err) => {
-                        error!("{:#?}", err);
+                        error!("repo_stat: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
@@ -92,7 +92,7 @@ pub fn launch(
                 let root_stat = match client.files_stat("/").await {
                     Ok(file_stat) => file_stat,
                     Err(err) => {
-                        error!("{:#?}", err);
+                        error!("root_stat: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
@@ -110,7 +110,7 @@ pub fn launch(
                 let bitswap_stats = match client.stats_bitswap().await {
                     Ok(bitswap_stat) => bitswap_stat,
                     Err(err) => {
-                        error!("{:#?}", err);
+                        error!("bitswap_stats: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
@@ -123,7 +123,7 @@ pub fn launch(
                 let bw_stat = match client.stats_bw().await {
                     Ok(bw_stat) => bw_stat,
                     Err(err) => {
-                        error!("{}", err);
+                        error!("bw_stat: {}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
@@ -136,7 +136,7 @@ pub fn launch(
                 let ledger = match client.bitswap_ledger(&peer.id).await {
                     Ok(ledger) => ledger,
                     Err(err) => {
-                        error!("{:#?}", err);
+                        error!("ledger: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         continue;
                     }
