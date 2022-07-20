@@ -54,24 +54,50 @@ pub fn launch(
 
         // Spawn the root task
         rt.block_on(async move {
-            let peer = client.id(None).await.unwrap();
-            info!("peer: {}", &peer.id);
-
-            let _res = client
-                .log_level(Logger::All, LoggingLevel::Error)
-                .await
-                .unwrap();
-
-            let repo_stat = client.stats_repo().await.unwrap();
-            info!("repo objs: {}", repo_stat.num_objects);
-            info!("repo size: {}", repo_stat.repo_size);
-            info!("repo path: {}", repo_stat.repo_path);
-            info!("repo vers: {}", repo_stat.version);
-
             let mut root_hash = String::from("0");
 
             loop {
-                let root_stat = client.files_stat("/").await.unwrap();
+                let peer = match client.id(None).await {
+                    Ok(peer) => peer,
+                    Err(err) => {
+                        error!("{:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+
+                let _res = match client.log_level(Logger::All, LoggingLevel::Error).await {
+                    Ok(log) => log,
+                    Err(err) => {
+                        error!("{:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+
+                let repo_stat = match client.stats_repo().await {
+                    Ok(repo_stat) => repo_stat,
+                    Err(err) => {
+                        error!("{:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+
+                info!("repo objs: {}", repo_stat.num_objects);
+                info!("repo size: {}", repo_stat.repo_size);
+                info!("repo path: {}", repo_stat.repo_path);
+                info!("repo vers: {}", repo_stat.version);
+
+                let root_stat = match client.files_stat("/").await {
+                    Ok(file_stat) => file_stat,
+                    Err(err) => {
+                        error!("{:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+
                 // debug!("{:#?}", root_stat);
 
                 if root_hash != root_stat.hash {
@@ -81,19 +107,40 @@ pub fn launch(
                     info!("root blocks: {}", root_stat.blocks);
                 }
 
-                let bitswap_stats = client.stats_bitswap().await.unwrap();
+                let bitswap_stats = match client.stats_bitswap().await {
+                    Ok(bitswap_stat) => bitswap_stat,
+                    Err(err) => {
+                        error!("{:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
                 debug!("blocks recv: {}", bitswap_stats.blocks_received);
                 debug!("data   recv: {}", bitswap_stats.data_received);
                 debug!("blocks sent: {}", bitswap_stats.blocks_sent);
                 debug!("data   sent: {}", bitswap_stats.data_sent);
 
-                let bw_stat = client.stats_bw().await.unwrap();
+                let bw_stat = match client.stats_bw().await {
+                    Ok(bw_stat) => bw_stat,
+                    Err(err) => {
+                        error!("{}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
                 debug!("bw  total_in: {}", bw_stat.total_in);
                 debug!("bw total_out: {}", bw_stat.total_out);
                 debug!("bw   rate_in: {}", bw_stat.rate_in);
                 debug!("bw  rate_out: {}", bw_stat.rate_out);
 
-                let ledger = client.bitswap_ledger(&peer.id).await.unwrap();
+                let ledger = match client.bitswap_ledger(&peer.id).await {
+                    Ok(ledger) => ledger,
+                    Err(err) => {
+                        error!("{:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
                 debug!("ledger     value: {}", ledger.value);
                 debug!("ledger      sent: {}", ledger.sent);
                 debug!("ledger      recv: {}", ledger.recv);

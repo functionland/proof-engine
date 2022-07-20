@@ -221,7 +221,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
                             info!("mint for: {:#?}", proof);
 
-                            let mint: asset::MintOutput = req(
+                            let mint: asset::MintOutput = match req(
                                 "asset/mint",
                                 asset::MintInput {
                                     seed: seeded.seed.clone(),
@@ -232,7 +232,14 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                                 },
                             )
                             .await
-                            .unwrap();
+                            {
+                                Ok(mint) => mint,
+                                Err(err) => {
+                                    error!("{:#?}", err);
+                                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                    continue;
+                                }
+                            };
                             info!("{:#?}", mint);
 
                             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
