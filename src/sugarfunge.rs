@@ -21,6 +21,14 @@ pub struct RequestError {
     pub description: String,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Health {
+    pub peers: usize,
+    pub is_syncing: bool,
+    pub should_have_peers: bool,
+}
+
 fn endpoint(cmd: &'static str) -> String {
     format!("http://127.0.0.1:4000/{}", cmd)
 }
@@ -91,6 +99,21 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             let asset_id = AssetId::from(asset_id);
 
             info!("{:?} {:?}", class_id, asset_id);
+
+            loop {
+                let health_request: Result<Health, RequestError> = req("health", ()).await;
+
+                match health_request {
+                    Ok(health) => {
+                        debug!("health: {:#?}", health);
+                        break;
+                    }
+                    Err(err) => {
+                        error!("health: {:#?}", err);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                };
+            }
 
             let seeded: account::SeededAccountOutput = req(
                 "account/seeded",

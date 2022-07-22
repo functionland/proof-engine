@@ -84,10 +84,10 @@ pub fn launch(
                     }
                 };
 
-                info!("repo objs: {}", repo_stat.num_objects);
-                info!("repo size: {}", repo_stat.repo_size);
-                info!("repo path: {}", repo_stat.repo_path);
-                info!("repo vers: {}", repo_stat.version);
+                debug!("repo objs: {}", repo_stat.num_objects);
+                debug!("repo size: {}", repo_stat.repo_size);
+                debug!("repo path: {}", repo_stat.repo_path);
+                debug!("repo vers: {}", repo_stat.version);
 
                 let root_stat = match client.files_stat("/").await {
                     Ok(file_stat) => file_stat,
@@ -102,9 +102,9 @@ pub fn launch(
 
                 if root_hash != root_stat.hash {
                     root_hash = root_stat.hash.clone();
-                    info!("root   hash: {}", root_stat.hash);
-                    info!("root   size: {}", root_stat.size);
-                    info!("root blocks: {}", root_stat.blocks);
+                    debug!("root   hash: {}", root_stat.hash);
+                    debug!("root   size: {}", root_stat.size);
+                    debug!("root blocks: {}", root_stat.blocks);
                 }
 
                 let bitswap_stats = match client.stats_bitswap().await {
