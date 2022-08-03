@@ -226,65 +226,71 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                         },
                     )
                     .await;
+
                     info!("{:#?}", manifests);
 
+                    let mut cumulative_size: u64 = 0;
+
                     if let Ok(manifests) = manifests {
-                        info!(
-                            "manifests.manifests[0].manifest: {:#?}",
-                            manifests.manifests[0].manifest
-                        );
 
-                        if let Ok(manifest) = serde_json::from_value::<crate::manifest::Manifest>(
-                            manifests.manifests[0].manifest.clone(),
-                        ) {
-                            info!("validating storage: {}", manifest.job.uri);
-                            if let Ok(file_check) = client.block_stat(&manifest.job.uri).await {
-                                info!("✅:  {:#?}", file_check);
-                            }
-
-                            info!("mint for: {:#?}", proof);
-
-                            let mint: asset::MintOutput = match req(
-                                "asset/mint",
-                                asset::MintInput {
-                                    seed: operator_account.seed.clone(),
-                                    class_id,
-                                    asset_id,
-                                    to: seeded.account.clone(),
-                                    amount: Balance::from(proof.cumulative_size as u128),
-                                },
-                            )
-                            .await
-                            {
-                                Ok(mint) => mint,
-                                Err(err) => {
-                                    error!("mint: {:#?}", err);
-                                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                                    continue;
-                                }
-                            };
-                            info!("{:#?}", mint);
-
-                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-                            let metadata = json!({"ipfs":{"root_hash": proof.hash}});
-
+                        for value in manifests.manifests.iter() {
                             info!(
-                                "updating_metadata: {:?} {:?} {:#?}",
-                                class_id, asset_id, metadata
+                                "manifests: {:#?}",
+                                value
                             );
-                            let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
-                                "asset/update_metadata",
-                                asset::UpdateMetadataInput {
-                                    seed: operator_account.seed.clone(),
-                                    class_id,
-                                    asset_id,
-                                    metadata: metadata.clone(),
-                                },
-                            )
-                            .await;
-                            info!("{:#?}", update_metadata);
+                            if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(
+                                value.manifest.clone(),
+                            ) {
+                                info!("validating storage: {}", current_manifest.job.uri);
+                                if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
+                                    info!("✅:  {:#?}", file_check);
+                                    cumulative_size += file_check.size;
+                                }
+                            } 
                         }
+                        
+                        //info!("mint for: {:#?}", proof);
+
+                        let mint: asset::MintOutput = match req(
+                            "asset/mint",
+                            asset::MintInput {
+                                seed: operator_account.seed.clone(),
+                                class_id,
+                                asset_id,
+                                to: seeded.account.clone(),
+                                amount: Balance::from(cumulative_size as u128),
+                            },
+                        )
+                        .await
+                        {
+                            Ok(mint) => mint,
+                            Err(err) => {
+                                error!("mint: {:#?}", err);
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                continue;
+                            }
+                        };
+                        info!("{:#?}", mint);
+
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                        let metadata = json!({"ipfs":{"root_hash": proof.hash}});
+
+                        info!(
+                            "updating_metadata: {:?} {:?} {:#?}",
+                            class_id, asset_id, metadata
+                        );
+                        let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
+                            "asset/update_metadata",
+                            asset::UpdateMetadataInput {
+                                seed: operator_account.seed.clone(),
+                                class_id,
+                                asset_id,
+                                metadata: metadata.clone(),
+                            },
+                        )
+                        .await;
+                        info!("{:#?}", update_metadata);
                     }
                 }
             }
