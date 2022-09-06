@@ -78,18 +78,17 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
 }
 
 async fn get_manifests(
-    job_from: Account,
-    job_to: Account,
+    operator: Option<Account>,
+    account: Account,
 ) -> Result<ManifestsOutput, RequestError> {
-    let job_from = job_from;
-    let job_to = job_to;
+    let operator = operator;
+    let account = account;
 
     let manifests: Result<fula::ManifestsOutput, _> = req(
         "fula/manifest",
         fula::ManifestsInput {
-            from: job_from,
-            to: job_to,
-            manifest: json!(""),
+            operator: operator,
+            account: account,
         },
     )
     .await;
@@ -97,12 +96,12 @@ async fn get_manifests(
     return manifests;
 }
 
-async fn get_accumulative_size(job_from: Account, job_to: Account) -> u64 {
+/*async fn get_accumulative_size(job_from: Account, job_to: Account) -> u64 {
     let client = ipfs_api::IpfsClient::default();
     let job_from = job_from;
     let job_to = job_to;
 
-    let manifests = get_manifests(job_from, job_to).await;
+    let manifests = get_manifests(Some(job_from), job_to).await;
 
     let mut cumulative_size: u64 = 0;
 
@@ -121,26 +120,26 @@ async fn get_accumulative_size(job_from: Account, job_to: Account) -> u64 {
         }
     }
     return cumulative_size;
-}
+}*/
 
 pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
     let client = ipfs_api::IpfsClient::default();
 
-    let cmd_opts = Opt::from_args();
+    //let cmd_opts = Opt::from_args();
     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
-    let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
+    //let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
 
-    let job_from = operator.account.clone();
+    //let job_from = operator.account.clone();
     let job_to = seeded.account.clone();
 
-    let manifests = get_manifests(job_from, job_to).await;
+    let manifests = get_manifests(None, job_to).await;
 
     let mut cumulative_size: u64 = 0;
 
     if let Ok(manifests) = manifests {
         for value in manifests.manifests.iter() {
-            info!("manifestos: {:#?}", value);
+            info!("manifests: {:#?}", value);
             if let Ok(current_manifest) =
                 serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone())
             {
@@ -158,21 +157,21 @@ pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
 pub async fn get_blocks_proof(peer_id: String) -> u64 {
     let client = ipfs_api::IpfsClient::default();
 
-    let cmd_opts = Opt::from_args();
+    //let cmd_opts = Opt::from_args();
     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
-    let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
+    //let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
 
-    let job_from = operator.account.clone();
+    //let job_from = operator.account.clone();
     let job_to = seeded.account.clone();
 
-    let manifests = get_manifests(job_from, job_to).await;
+    let manifests = get_manifests(None, job_to).await;
 
     let mut blocks: u64 = 0;
 
     if let Ok(manifests) = manifests {
         for value in manifests.manifests.iter() {
-            info!("manifestos: {:#?}", value);
+            info!("manifests: {:#?}", value);
             if let Ok(current_manifest) =
                 serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone())
             {
@@ -335,7 +334,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
                     let manifests =
-                        get_manifests(operator.account.clone(), seeded.account.clone()).await;
+                        get_manifests(None, seeded.account.clone()).await;
 
                     if let Ok(_) = manifests {
                         info!("mint for: {:#?}", proof);
