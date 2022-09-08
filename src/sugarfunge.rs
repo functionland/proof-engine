@@ -96,41 +96,12 @@ async fn get_manifests(
     return manifests;
 }
 
-/*async fn get_accumulative_size(job_from: Account, job_to: Account) -> u64 {
-    let client = ipfs_api::IpfsClient::default();
-    let job_from = job_from;
-    let job_to = job_to;
-
-    let manifests = get_manifests(Some(job_from), job_to).await;
-
-    let mut cumulative_size: u64 = 0;
-
-    if let Ok(manifests) = manifests {
-        for value in manifests.manifests.iter() {
-            info!("manifestos: {:#?}", value);
-            if let Ok(current_manifest) =
-                serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone())
-            {
-                info!("validating storage: {}", current_manifest.job.uri);
-                if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                    info!("✅:  {:#?}", file_check);
-                    cumulative_size += file_check.size;
-                }
-            }
-        }
-    }
-    return cumulative_size;
-}*/
-
 pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
     let client = ipfs_api::IpfsClient::default();
 
-    //let cmd_opts = Opt::from_args();
     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
-    //let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
 
-    //let job_from = operator.account.clone();
     let job_to = seeded.account.clone();
 
     let manifests = get_manifests(None, job_to).await;
@@ -138,31 +109,28 @@ pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
     let mut cumulative_size: u64 = 0;
 
     if let Ok(manifests) = manifests {
-        for value in manifests.manifests.iter() {
-            info!("manifests: {:#?}", value);
-            if let Ok(current_manifest) =
-                serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone())
-            {
-                info!("validating storage: {}", current_manifest.job.uri);
-                if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                    info!("✅:  {:#?}", file_check);
-                    cumulative_size += file_check.size;
+            for value in manifests.manifests.iter() {
+                if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
+
+                    if let Ok(req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
+                        info!("✅:  {:#?}", req);
+                        if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
+                            info!("✅:  {:#?}", file_check);
+                            cumulative_size += file_check.size;
+                        }
+                    }
                 }
             }
         }
-    }
     return cumulative_size;
 }
 
 pub async fn get_blocks_proof(peer_id: String) -> u64 {
     let client = ipfs_api::IpfsClient::default();
 
-    //let cmd_opts = Opt::from_args();
     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
-    //let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
-
-    //let job_from = operator.account.clone();
+    
     let job_to = seeded.account.clone();
 
     let manifests = get_manifests(None, job_to).await;
@@ -171,14 +139,14 @@ pub async fn get_blocks_proof(peer_id: String) -> u64 {
 
     if let Ok(manifests) = manifests {
         for value in manifests.manifests.iter() {
-            info!("manifests: {:#?}", value);
-            if let Ok(current_manifest) =
-                serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone())
-            {
-                info!("validating storage: {}", current_manifest.job.uri);
-                if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                    info!("✅:  {:#?}", file_check);
-                    blocks += 1;
+            if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
+
+                if let Ok(req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
+                    info!("✅:  {:#?}", req);
+                    if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
+                        info!("✅:  {:#?}", file_check);
+                        blocks += 1;
+                    }
                 }
             }
         }
