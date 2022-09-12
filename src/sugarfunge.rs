@@ -92,7 +92,7 @@ async fn get_manifests(
         },
     )
     .await;
-    info!("{:#?}", manifests);
+    //info!("{:#?}", manifests);
     return manifests;
 }
 
@@ -112,8 +112,8 @@ pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
             for value in manifests.manifests.iter() {
                 if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
 
-                    if let Ok(req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
-                        info!("✅:  {:#?}", req);
+                    if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
+                        //info!("✅:  {:#?}", req);
                         if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
                             info!("✅:  {:#?}", file_check);
                             cumulative_size += file_check.size;
@@ -141,10 +141,10 @@ pub async fn get_blocks_proof(peer_id: String) -> u64 {
         for value in manifests.manifests.iter() {
             if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
 
-                if let Ok(req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
-                    info!("✅:  {:#?}", req);
-                    if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                        info!("✅:  {:#?}", file_check);
+                if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
+                    //info!("✅:  {:#?}", req);
+                    if let Ok(_file_check) = client.block_stat(&current_manifest.job.uri).await {
+                        //info!("✅:  {:#?}", file_check);
                         blocks += 1;
                     }
                 }
