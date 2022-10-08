@@ -5502,7 +5502,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 [[package]]
 name = "subxt"
 version = "0.23.0"
-source = "git+https://github.com/carloslopezandara/subxt.git?branch=feature/polkadot-v0.9.27#f92fc58ae22d3e55d121358d7a023b14e4e9c759"
+source = "git+https://github.com/SugarFunge/subxt.git?branch=feature/polkadot-v0.9.27#6567f884b106969cd25b67865f1611b7a3d28fc9"
 dependencies = [
  "bitvec",
  "derivative",
@@ -5528,7 +5528,7 @@ dependencies = [
 [[package]]
 name = "subxt-codegen"
 version = "0.23.0"
-source = "git+https://github.com/carloslopezandara/subxt.git?branch=feature/polkadot-v0.9.27#f92fc58ae22d3e55d121358d7a023b14e4e9c759"
+source = "git+https://github.com/SugarFunge/subxt.git?branch=feature/polkadot-v0.9.27#6567f884b106969cd25b67865f1611b7a3d28fc9"
 dependencies = [
  "darling 0.14.1",
  "frame-metadata",
@@ -5545,7 +5545,7 @@ dependencies = [
 [[package]]
 name = "subxt-macro"
 version = "0.23.0"
-source = "git+https://github.com/carloslopezandara/subxt.git?branch=feature/polkadot-v0.9.27#f92fc58ae22d3e55d121358d7a023b14e4e9c759"
+source = "git+https://github.com/SugarFunge/subxt.git?branch=feature/polkadot-v0.9.27#6567f884b106969cd25b67865f1611b7a3d28fc9"
 dependencies = [
  "darling 0.14.1",
  "proc-macro-error",
@@ -5556,7 +5556,7 @@ dependencies = [
 [[package]]
 name = "subxt-metadata"
 version = "0.23.0"
-source = "git+https://github.com/carloslopezandara/subxt.git?branch=feature/polkadot-v0.9.27#f92fc58ae22d3e55d121358d7a023b14e4e9c759"
+source = "git+https://github.com/SugarFunge/subxt.git?branch=feature/polkadot-v0.9.27#6567f884b106969cd25b67865f1611b7a3d28fc9"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
@@ -5567,7 +5567,7 @@ dependencies = [
 [[package]]
 name = "sugarfunge-api-types"
 version = "0.1.0"
-source = "git+https://github.com/functionland/sugarfunge-api.git?rev=5cbd56c5a851366ecfa2c5eb9ff03fcb2ec86663#5cbd56c5a851366ecfa2c5eb9ff03fcb2ec86663"
+source = "git+https://github.com/functionland/sugarfunge-api.git?rev=0fa09037b03b32a23cc29c150f48dcca7eb455f5#0fa09037b03b32a23cc29c150f48dcca7eb455f5"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
