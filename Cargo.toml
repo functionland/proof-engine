@@ -18,24 +18,19 @@ bevy-inspector-egui = "0.10"
 simula_core = { git = "https://github.com/Simbotic/simula.git", rev = "c907cd248b89e75a57cbfe880a976ccee45efe45" }
 simula_camera = { git = "https://github.com/Simbotic/simula.git", rev = "c907cd248b89e75a57cbfe880a976ccee45efe45" }
 simula_viz = { git = "https://github.com/Simbotic/simula.git", rev = "c907cd248b89e75a57cbfe880a976ccee45efe45" }
-# simula_core = { path = "../../simbotic/simula/crates/simula_core" }
-# simula_camera = { path = "../../simbotic/simula/crates/simula_camera" }
-# simula_viz = { path = "../../simbotic/simula/crates/simula_viz" }
 
-# ipfs = { default-features = true, path = "../../simbotic/rust-ipfs" }
 tokio = { default-features = false, features = [
     "io-std",
     "io-util",
     "time",
     "rt-multi-thread",
 ], version = "1" }
-# tracing-subscriber = { default-features = false, features = ["fmt", "tracing-log", "ansi", "env-filter"], version = "0.2" }
 futures = { version = "0.3" }
 crossbeam = "0.8"
 ipfs-api-backend-hyper = { version = "0.4" }
 
 reqwest = { version = "0.11", features = ["json"] }
-sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "5cbd56c5a851366ecfa2c5eb9ff03fcb2ec86663" }
+sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "0fa09037b03b32a23cc29c150f48dcca7eb455f5" }
 
 pcd-rs = "0.8.0"
 bytes = "1.1"
