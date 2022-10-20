@@ -4,19 +4,50 @@ on:
   push:
     branches: [ main ]
 jobs:
-    build-and-deploy:
-        runs-on: ubuntu-latest
+    build-arm64:
+        runs-on: [self-hosted, linux, ARM64]
         steps:
         - uses: actions/checkout@v3
         - name: Login to DockerHub
-          uses: docker/login-action@v1
+          uses: docker/login-action@v2
           with:
             username: ${{ secrets.DOCKERHUB_USERNAME }}
             password: ${{ secrets.DOCKERHUB_ORG_TOKEN }}
         - name: Build and push
-          uses: docker/build-push-action@v2
+          uses: docker/build-push-action@v3
           with:
             context: ./
             file: ./docker/Dockerfile
             push: true
-            tags: ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:latest
+            tags: ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:arm64-latest
+    build-amd64:
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v3
+        - name: Login to DockerHub
+          uses: docker/login-action@v2
+          with:
+            username: ${{ secrets.DOCKERHUB_USERNAME }}
+            password: ${{ secrets.DOCKERHUB_ORG_TOKEN }}
+        - name: Build and push
+          uses: docker/build-push-action@v3
+          with:
+            context: ./
+            file: ./docker/Dockerfile
+            push: true
+            tags: ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:amd64-latest
+    manifest:
+        needs: [build-arm64, build-amd64]
+        runs-on: ubuntu-latest
+        steps:
+          - name: Login to DockerHub
+            uses: docker/login-action@v2
+            with:
+              username: ${{ secrets.DOCKERHUB_USERNAME }}
+              password: ${{ secrets.DOCKERHUB_ORG_TOKEN }}
+          - name: Create and Push manifest
+            run: |
+              docker manifest create ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:latest \
+              --amend ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:amd64-latest \
+              --amend ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:arm64-latest
+              docker manifest push ${{ secrets.DOCKERHUB_USERNAME }}/proof-engine:latest
