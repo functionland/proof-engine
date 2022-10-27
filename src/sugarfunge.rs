@@ -8,7 +8,7 @@ use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use structopt::StructOpt;
-use sugarfunge_api_types::{fula::ManifestsOutput, primitives::*, *};
+use sugarfunge_api_types::{/*fula::ManifestsOutput,*/ primitives::*, *};
 
 #[derive(Deref)]
 pub struct Sender<T>(pub channel::Sender<T>);
@@ -77,82 +77,82 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-async fn get_manifests(
-    operator: Option<Account>,
-    account: Account,
-) -> Result<ManifestsOutput, RequestError> {
-    let operator = operator;
-    let account = account;
+// async fn get_manifests(
+//     operator: Option<Account>,
+//     account: Account,
+// ) -> Result<ManifestsOutput, RequestError> {
+//     let operator = operator;
+//     let account = account;
 
-    let manifests: Result<fula::ManifestsOutput, _> = req(
-        "fula/manifest",
-        fula::ManifestsInput {
-            operator: operator,
-            account: account,
-        },
-    )
-    .await;
-    //info!("{:#?}", manifests);
-    return manifests;
-}
+//     let manifests: Result<fula::ManifestsOutput, _> = req(
+//         "fula/manifest",
+//         fula::ManifestsInput {
+//             operator: operator,
+//             account: account,
+//         },
+//     )
+//     .await;
+//     //info!("{:#?}", manifests);
+//     return manifests;
+// }
 
-pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
-    let client = ipfs_api::IpfsClient::default();
+// pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
+//     let client = ipfs_api::IpfsClient::default();
 
-    let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
-    let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
+//     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
+//     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
 
-    let job_to = seeded.account.clone();
+//     let job_to = seeded.account.clone();
 
-    let manifests = get_manifests(None, job_to).await;
+//     let manifests = get_manifests(None, job_to).await;
 
-    let mut cumulative_size: u64 = 0;
+//     let mut cumulative_size: u64 = 0;
 
-    if let Ok(manifests) = manifests {
-            for value in manifests.manifests.iter() {
-                if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
+//     if let Ok(manifests) = manifests {
+//             for value in manifests.manifests.iter() {
+//                 if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
 
-                    if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
-                        //info!("✅:  {:#?}", req);
-                        if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                            info!("✅:  {:#?}", file_check);
-                            cumulative_size += file_check.size;
-                        }
-                    }
-                }
-            }
-        }
-    return cumulative_size;
-}
+//                     if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
+//                         //info!("✅:  {:#?}", req);
+//                         if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
+//                             info!("✅:  {:#?}", file_check);
+//                             cumulative_size += file_check.size;
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//     return cumulative_size;
+// }
 
-pub async fn get_blocks_proof(peer_id: String) -> u64 {
-    let client = ipfs_api::IpfsClient::default();
+// pub async fn get_blocks_proof(peer_id: String) -> u64 {
+//     let client = ipfs_api::IpfsClient::default();
 
-    let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
-    let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
+//     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
+//     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
     
-    let job_to = seeded.account.clone();
+//     let job_to = seeded.account.clone();
 
-    let manifests = get_manifests(None, job_to).await;
+//     let manifests = get_manifests(None, job_to).await;
 
-    let mut blocks: u64 = 0;
+//     let mut blocks: u64 = 0;
 
-    if let Ok(manifests) = manifests {
-        for value in manifests.manifests.iter() {
-            if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
+//     if let Ok(manifests) = manifests {
+//         for value in manifests.manifests.iter() {
+//             if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(value.manifest.clone()){
 
-                if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
-                    //info!("✅:  {:#?}", req);
-                    if let Ok(_file_check) = client.block_stat(&current_manifest.job.uri).await {
-                        //info!("✅:  {:#?}", file_check);
-                        blocks += 1;
-                    }
-                }
-            }
-        }
-    }
-    return blocks;
-}
+//                 if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await{
+//                     //info!("✅:  {:#?}", req);
+//                     if let Ok(_file_check) = client.block_stat(&current_manifest.job.uri).await {
+//                         //info!("✅:  {:#?}", file_check);
+//                         blocks += 1;
+//                     }
+//                 }
+//             }
+//         }
+//     }
+//     return blocks;
+// }
 
 async fn verify_account_seeded(seed: Seed) -> account::SeededAccountOutput {
     let seeded: account::SeededAccountOutput =
@@ -172,26 +172,23 @@ async fn verify_account_exist(seeded_account: Account, operator_seed: Seed) {
     .await
     .unwrap();
     info!("{:?}", account_exists);
+}
 
-    if !account_exists.exists {
-        warn!("invalid: {:?}", seeded_account);
-        warn!("registering: {:?}", seeded_account);
-
-        let fund: account::FundAccountOutput = req(
-            "account/fund",
-            account::FundAccountInput {
-                seed: operator_seed.clone(),
-                to: seeded_account.clone(),
-                amount: Balance::from(1000000000000000000),
-            },
-        )
-        .await
-        .unwrap();
-        if u128::from(fund.amount) > 0 {
-            warn!("registered: {:?}", seeded_account);
-        } else {
-            error!("could not register account");
-        }
+async fn register_account(seeded_account: Account, operator_seed: Seed) {
+    let fund: account::FundAccountOutput = req(
+        "account/fund",
+        account::FundAccountInput {
+            seed: operator_seed.clone(),
+            to: seeded_account.clone(),
+            amount: Balance::from(1000000000000000000),
+        },
+    )
+    .await
+    .unwrap();
+    if u128::from(fund.amount) > 0 {
+        warn!("registered: {:?}", seeded_account);
+    } else {
+        error!("could not register account");
     }
 }
 
@@ -289,6 +286,8 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             info!("operator: {:?}", operator.seed);
             info!("operator: {:?}", operator.account);
 
+            register_account(seeded.account.clone(), operator.seed.clone()).await;
+
             verify_account_exist(seeded.account.clone(), operator.seed.clone()).await;
 
             verify_class_info(class_id, operator.seed.clone(), operator.account.clone()).await;
@@ -297,59 +296,59 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
             //Executing the Calculation, Mint and Update of rewards
 
-            loop {
-                if let Ok(proof) = sugar_rx.try_recv() {
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            // loop {
+            //     if let Ok(proof) = sugar_rx.try_recv() {
+            //         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-                    let manifests =
-                        get_manifests(None, seeded.account.clone()).await;
+            //         let manifests =
+            //             get_manifests(None, seeded.account.clone()).await;
 
-                    if let Ok(_) = manifests {
-                        info!("mint for: {:#?}", proof);
+            //         if let Ok(_) = manifests {
+            //             info!("mint for: {:#?}", proof);
 
-                        let mint: asset::MintOutput = match req(
-                            "asset/mint",
-                            asset::MintInput {
-                                seed: operator.seed.clone(),
-                                class_id,
-                                asset_id,
-                                to: seeded.account.clone(),
-                                amount: Balance::from(proof.cumulative_size as u128),
-                            },
-                        )
-                        .await
-                        {
-                            Ok(mint) => mint,
-                            Err(err) => {
-                                error!("mint: {:#?}", err);
-                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                                continue;
-                            }
-                        };
-                        info!("{:#?}", mint);
+            //             let mint: asset::MintOutput = match req(
+            //                 "asset/mint",
+            //                 asset::MintInput {
+            //                     seed: operator.seed.clone(),
+            //                     class_id,
+            //                     asset_id,
+            //                     to: seeded.account.clone(),
+            //                     amount: Balance::from(proof.cumulative_size as u128),
+            //                 },
+            //             )
+            //             .await
+            //             {
+            //                 Ok(mint) => mint,
+            //                 Err(err) => {
+            //                     error!("mint: {:#?}", err);
+            //                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            //                     continue;
+            //                 }
+            //             };
+            //             info!("{:#?}", mint);
 
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            //             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-                        let metadata = json!({"ipfs":{"root_hash": proof.hash}});
+            //             let metadata = json!({"ipfs":{"root_hash": proof.hash}});
 
-                        info!(
-                            "updating_metadata: {:?} {:?} {:#?}",
-                            class_id, asset_id, metadata
-                        );
-                        let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
-                            "asset/update_metadata",
-                            asset::UpdateMetadataInput {
-                                seed: operator.seed.clone(),
-                                class_id,
-                                asset_id,
-                                metadata: metadata.clone(),
-                            },
-                        )
-                        .await;
-                        info!("{:#?}", update_metadata);
-                    }
-                }
-            }
+            //             info!(
+            //                 "updating_metadata: {:?} {:?} {:#?}",
+            //                 class_id, asset_id, metadata
+            //             );
+            //             let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
+            //                 "asset/update_metadata",
+            //                 asset::UpdateMetadataInput {
+            //                     seed: operator.seed.clone(),
+            //                     class_id,
+            //                     asset_id,
+            //                     metadata: metadata.clone(),
+            //                 },
+            //             )
+            //             .await;
+            //             info!("{:#?}", update_metadata);
+            //         }
+            //     }
+            // }
         });
     });
 }
