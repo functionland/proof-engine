@@ -20,7 +20,7 @@ pub struct ProofEngine {
     pub peer_id: String,
     pub hash: String,
     pub size: u64,
-    pub cumulative_size: u64,
+    pub cumulative_size: u64, //Storage provided by user
     pub blocks: u64,
     pub total_in: u64,
     pub total_out: u64,
@@ -152,7 +152,7 @@ pub fn launch(
                     peer_id: peer.id.clone(),
                     hash: root_stat.hash.clone(),
                     size: root_stat.size,
-                    cumulative_size: sugarfunge::get_cumulative_size_proof(peer.id.clone()).await,
+                    cumulative_size: sugarfunge::get_cumulative_size_proof(peer.id.clone()).await, //Storage provided by user
                     blocks: sugarfunge::get_blocks_proof(peer.id.clone()).await,
                     total_in: bw_stat.total_in,
                     total_out: bw_stat.total_out,
