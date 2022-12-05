@@ -304,7 +304,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             let asset_id = AssetId::from(asset_id);
 
             info!(
-                "VERIFICATION: ClassId {:?}, AssetId{:?}",
+                "VERIFICATION: ClassId {:?}, AssetId {:?}",
                 class_id, asset_id
             );
 
@@ -353,49 +353,58 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                             //CALCULATE DAILY REWARDS
                             let network_size =
                                 get_cumulative_size(&current_all_manifests).await as f64;
-                            daily_rewards = calculate_daily_rewards(network_size, &seeded).await;
-                            info!("STEP 1 CALCULATE REWARDS: {:?}", daily_rewards);
+                            let rewards = calculate_daily_rewards(network_size, &seeded).await;
+                            info!("STEP 1: CALCULATE REWARDS:");
+                            info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
+                            info!("  Mining Rewards: {:?}", rewards.daily_storage_rewards);
 
-                            //MINT DAILY REWARDS
-                            let mint: asset::MintOutput = match req(
-                                "asset/mint",
-                                asset::MintInput {
-                                    seed: operator.seed.clone(),
-                                    class_id,
-                                    asset_id,
-                                    to: seeded.account.clone(),
-                                    amount: Balance::from((daily_rewards) as u128),
-                                },
-                            )
-                            .await
-                            {
-                                Ok(mint) => mint,
-                                Err(err) => {
-                                    error!("mint: {:#?}", err);
-                                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                                    continue;
-                                }
-                            };
-                            info!("STEP 2 MINTED: {:#?}", mint);
-                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                            daily_rewards += rewards.daily_storage_rewards;
+                            daily_rewards += rewards.daily_mining_rewards;
 
-                            //UPDATE METADATA
-                            let metadata = json!({"ipfs":{"root_hash": proof.hash}});
-                            info!(
-                                "Updating_metadata: {:?} {:?} {:#?}",
-                                class_id, asset_id, metadata
-                            );
-                            let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
-                                "asset/update_metadata",
-                                asset::UpdateMetadataInput {
-                                    seed: operator.seed.clone(),
-                                    class_id,
-                                    asset_id,
-                                    metadata: metadata.clone(),
-                                },
-                            )
-                            .await;
-                            info!("STEP 3 UPDATED METADATA: {:#?}", update_metadata);
+                            if daily_rewards > 0.0 {
+                                //MINT DAILY REWARDS
+                                let mint: asset::MintOutput = match req(
+                                    "asset/mint",
+                                    asset::MintInput {
+                                        seed: operator.seed.clone(),
+                                        class_id,
+                                        asset_id,
+                                        to: seeded.account.clone(),
+                                        amount: Balance::from((daily_rewards) as u128),
+                                    },
+                                )
+                                .await
+                                {
+                                    Ok(mint) => mint,
+                                    Err(err) => {
+                                        error!("mint: {:#?}", err);
+                                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                        continue;
+                                    }
+                                };
+                                info!("STEP 2: MINTED: {:#?}", mint);
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                                //UPDATE METADATA
+                                let metadata = json!({"ipfs":{"root_hash": proof.hash}});
+                                info!(
+                                    "Updating_metadata: {:?} {:?} {:#?}",
+                                    class_id, asset_id, metadata
+                                );
+                                let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
+                                    "asset/update_metadata",
+                                    asset::UpdateMetadataInput {
+                                        seed: operator.seed.clone(),
+                                        class_id,
+                                        asset_id,
+                                        metadata: metadata.clone(),
+                                    },
+                                )
+                                .await;
+                                info!("STEP 3: UPDATED METADATA: {:#?}", update_metadata);
+                            } else {
+                                info!("STEP 2: NO REWARDS TO BE MINTED");
+                            }
                         }
                     }
                 }
@@ -411,34 +420,44 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
     });
 }
 
-async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput) -> f64 {
-    let mut daily_rewards = 0.0;
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rewards {
+    pub daily_mining_rewards: f64,
+    pub daily_storage_rewards: f64,
+}
+
+async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput) -> Rewards {
+    let mut rewards = Rewards {
+        daily_mining_rewards: 0.0,
+        daily_storage_rewards: 0.0,
+    };
     let pool_id = get_account_pool_id(seeded.account.clone()).await;
     let user_manifests = get_manifests(pool_id, None, Some(seeded.account.clone())).await;
     if let Ok(user_manifests) = user_manifests {
         let user_size = get_cumulative_size(&user_manifests).await as f64;
         let user_participation = user_size / network_size;
 
-        let daily_storage_rewards =
-            calculate_and_update_storage_rewards(&user_manifests, &seeded).await;
+        rewards =
+            calculate_and_update_storage_rewards(&user_manifests, &seeded, user_participation)
+                .await;
 
-        let daily_storage_rewards = daily_storage_rewards * user_participation;
-        daily_rewards += daily_storage_rewards;
-
-        let daily_mining_rewards = DAILY_TOKENS_MINING as f64 * user_participation;
-        daily_rewards += daily_mining_rewards;
-
-        return daily_rewards;
+        return rewards;
     } else {
-        return daily_rewards;
+        return rewards;
     }
 }
 
 pub async fn calculate_and_update_storage_rewards(
     manifests: &GetAllManifestsOutput,
     seeded: &SeededAccountOutput,
-) -> f64 {
-    let mut cumulative_storage_rewards = 0.0;
+    user_participation: f64,
+) -> Rewards {
+    let mut rewards = Rewards {
+        daily_mining_rewards: 0.0,
+        daily_storage_rewards: 0.0,
+    };
+
+    // let mut cumulative_storage_rewards = 0.0;
     //Storage provided by user
     let client = ipfs_api::IpfsClient::default();
 
@@ -457,9 +476,12 @@ pub async fn calculate_and_update_storage_rewards(
                     let active_days = manifest.manifest_storage_data.active_days + 1;
 
                     // The calculation of the storage rewards
-                    cumulative_storage_rewards += (1 as f64
+                    rewards.daily_storage_rewards += (1 as f64
                         / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
-                        * DAILY_TOKENS_STORAGE;
+                        * DAILY_TOKENS_STORAGE
+                        * user_participation;
+
+                    rewards.daily_mining_rewards = DAILY_TOKENS_MINING as f64 * user_participation;
 
                     updated_data.active_days += 1;
                     updated_data.active_cycles = 0;
@@ -486,7 +508,7 @@ pub async fn calculate_and_update_storage_rewards(
         )
         .await;
     }
-    return cumulative_storage_rewards;
+    return rewards;
 }
 
 async fn updated_storage_data(
