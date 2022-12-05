@@ -7,19 +7,20 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::time;
 use structopt::StructOpt;
-use sugarfunge_api_types::{fula::*, primitives::*, *};
+use sugarfunge_api_types::{account::*, fula::*, primitives::*, *};
 
-// const GB: u32 = 1048576;
-// const USER_STORAGE_PROVIDED: u16 = 1000; //GBs
-// const TOTAL_USERS: u16 = 2000;
-// const NETWORK_SIZE: u64 = USER_STORAGE_PROVIDED as u64 * TOTAL_USERS as u64;
-// const USER_PARTICIPATION: f32 = USER_STORAGE_PROVIDED as f32 / NETWORK_SIZE as f32;
 const YEARLY_TOKENS: u64 = 48000000;
+
 const DAILY_TOKENS_MINING: f64 = YEARLY_TOKENS as f64 * 0.70 / (12 * 30) as f64;
-// const DAILY_TOKENS_STORAGE: f64 = YEARLY_TOKENS as f64 *0.20 /(12*30) as f64;
-// const DAILY_TOKENS_STORAGE_REWARDS: f32 = DAILY_TOKENS_STORAGE as f32 * USER_PARTICIPATION;
-// const DAILY_TOKENS_MINING_REWARDS: f32 = DAILY_TOKENS_MINING as f32 * USER_PARTICIPATION;
+const DAILY_TOKENS_STORAGE: f64 = YEARLY_TOKENS as f64 * 0.20 / (12 * 30) as f64;
+
+const NUMBER_CYCLES_TO_ADVANCE: u16 = 24;
+const NUMBER_CYCLES_TO_RESET: u16 = 4;
+
+const HOUR_TO_MILISECONDS: u64 = 500; // Should be 3600000 seconds in a day
+const YEAR_TO_HOURS: i64 = 360; // Should be 8640 hours in a year
 
 #[derive(Deref)]
 pub struct Sender<T>(pub channel::Sender<T>);
@@ -89,7 +90,7 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
 }
 
 async fn get_manifests(
-    pool_id: Option<u16>,
+    pool_id: Option<PoolId>,
     uploader: Option<Account>,
     storage: Option<Account>,
 ) -> Result<GetAllManifestsOutput, RequestError> {
@@ -105,7 +106,27 @@ async fn get_manifests(
     return manifests;
 }
 
-pub async fn get_cumulative_size_all(manifests: GetAllManifestsOutput) -> u64 {
+async fn get_account_pool_id(account: Account) -> Option<PoolId> {
+    let user: Result<pool::GetAllPoolUsersOutput, _> = req(
+        "fula/pool/users",
+        pool::GetAllPoolUsersInput {
+            account: Some(account),
+        },
+    )
+    .await;
+    if let Ok(ref users) = user {
+        let current = users.users.get(0);
+        if let Some(user_value) = current {
+            return user_value.pool_id;
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    }
+}
+
+pub async fn get_cumulative_size(manifests: &GetAllManifestsOutput) -> u64 {
     //Storage provided by user
     let client = ipfs_api::IpfsClient::default();
 
@@ -117,7 +138,7 @@ pub async fn get_cumulative_size_all(manifests: GetAllManifestsOutput) -> u64 {
         ) {
             if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await {
                 if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                    info!("✅:  {:#?}", file_check);
+                    info!("VERIFICATION✅:  {:#?}", file_check);
                     cumulative_size += file_check.size;
                 }
             }
@@ -144,7 +165,7 @@ pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
             ) {
                 if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await {
                     if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
-                        info!("✅:  {:#?}", file_check);
+                        info!("VERIFICATION✅:  {:#?}", file_check);
                         cumulative_size += file_check.size;
                     }
                 }
@@ -197,7 +218,7 @@ async fn verify_account_exist(seeded_account: Account) -> bool {
     )
     .await
     .unwrap();
-    info!("{:?}", account_exists);
+    info!("VERIFICATION:{:?}", account_exists);
     return account_exists.exists;
 }
 
@@ -214,9 +235,9 @@ async fn register_account(seeded_account: Account, operator_seed: Seed) {
         .await
         .unwrap();
         if u128::from(fund.amount) > 0 {
-            warn!("registered: {:?}", seeded_account);
+            warn!("WARNING: registered: {:?}", seeded_account);
         } else {
-            error!("could not register account");
+            error!("ERROR: could not register account");
         }
     }
 }
@@ -228,7 +249,7 @@ async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_acco
             .unwrap();
 
     if class_info.info.is_none() {
-        info!("creating: {:?}", class_id);
+        info!("CREATION: creating: {:?}", class_id);
         let create_class: asset::CreateClassOutput = req(
             "asset/create_class",
             asset::CreateClassInput {
@@ -240,7 +261,7 @@ async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_acco
         )
         .await
         .unwrap();
-        info!("created: {:#?}", create_class);
+        info!("CREATION: created: {:#?}", create_class);
     }
 }
 
@@ -251,7 +272,7 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: 
             .unwrap();
 
     if asset_info.info.is_none() {
-        info!("creating: {:?} {:?}", class_id, asset_id);
+        info!("CREATION: creating: {:?} {:?}", class_id, asset_id);
         let create_asset: asset::CreateOutput = req(
             "asset/create",
             asset::CreateInput {
@@ -263,7 +284,7 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: 
         )
         .await
         .unwrap();
-        info!("created: {:#?}", create_asset);
+        info!("CREATION: created: {:#?}", create_asset);
     }
 }
 
@@ -276,19 +297,16 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
         // Spawn the root task
         rt.block_on(async move {
             let proof = sugar_rx.recv().unwrap();
-
             let cmd_opts = Opt::from_args();
-
             let class_id = *cmd_opts.class_id;
-
             let ipfs_seed = format!("//fula/dev/2/{}", &proof.peer_id);
-
             let asset_id = calculate_hash(&ipfs_seed);
             let asset_id = AssetId::from(asset_id);
 
-            //let mut day_count = 0;
-
-            info!("{:?} {:?}", class_id, asset_id);
+            info!(
+                "VERIFICATION: ClassId {:?}, AssetId{:?}",
+                class_id, asset_id
+            );
 
             //Health Request Loop
 
@@ -297,11 +315,11 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
                 match health_request {
                     Ok(health) => {
-                        debug!("health: {:#?}", health);
+                        debug!("VERIFICATION: health: {:#?}", health);
                         break;
                     }
                     Err(err) => {
-                        error!("health: {:#?}", err);
+                        error!("ERROR: health: {:#?}", err);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
                 };
@@ -310,12 +328,12 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             //Verifying the existence of the account, the operator, class_id and asset_id
 
             let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
-            info!("{:?}", seeded.seed);
-            info!("{:?}", seeded.account);
+            info!("VERIFICATION: User Seed {:?}", seeded.seed);
+            info!("VERIFICATION: User Account {:?}", seeded.account);
 
             let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
-            info!("operator: {:?}", operator.seed);
-            info!("operator: {:?}", operator.account);
+            info!("VERIFICATION: Operator Seed: {:?}", operator.seed);
+            info!("VERIFICATION: Operator Account: {:?}", operator.account);
 
             register_account(seeded.account.clone(), operator.seed.clone()).await;
 
@@ -323,34 +341,22 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
             verify_asset_info(class_id, asset_id, operator.seed.clone()).await;
 
-            //get_manifests(seeded.account.clone()).await;
-
             //Executing the Calculation, Mint and Update of rewards
 
-            loop {
+            for cycle in 1..YEAR_TO_HOURS {
+                let mut daily_rewards = 0.0;
                 if let Ok(proof) = sugar_rx.try_recv() {
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await; //adjust to imitate days
-                                                                                 //day_count+=1;
-
                     let all_manifests = get_manifests(None, None, None).await;
 
-                    if let Ok(current_manifests) = all_manifests {
-                        if current_manifests.manifests.len() > 0 {
-                            info!("mint for: {:#?}", proof);
+                    if let Ok(current_all_manifests) = all_manifests {
+                        if current_all_manifests.manifests.len() > 0 {
+                            //CALCULATE DAILY REWARDS
+                            let network_size =
+                                get_cumulative_size(&current_all_manifests).await as f64;
+                            daily_rewards = calculate_daily_rewards(network_size, &seeded).await;
+                            info!("STEP 1 CALCULATE REWARDS: {:?}", daily_rewards);
 
-                            //Mining Rewards:
-
-                            let current_network_size =
-                                get_cumulative_size_all(current_manifests).await as f64;
-                            let user_participation =
-                                proof.cumulative_size as f64 / current_network_size;
-                            let daily_mining_rewards =
-                                DAILY_TOKENS_MINING as f64 * user_participation;
-
-                            //Storage Rewards:
-                            //let daily_storage_rewards = (1 as f32 / (1 as f32 + (-0.1*(day_count-45) as f32).exp())) * DAILY_TOKENS_STORAGE_REWARDS; //Daily Income Calculation
-
-                            //Mint Daily Rewards
+                            //MINT DAILY REWARDS
                             let mint: asset::MintOutput = match req(
                                 "asset/mint",
                                 asset::MintInput {
@@ -358,7 +364,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                                     class_id,
                                     asset_id,
                                     to: seeded.account.clone(),
-                                    amount: Balance::from((daily_mining_rewards) as u128),
+                                    amount: Balance::from((daily_rewards) as u128),
                                 },
                             )
                             .await
@@ -370,16 +376,13 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                                     continue;
                                 }
                             };
-                            info!("{:#?}", mint);
-
-                            info!("Mining Rewards: {:#?}", daily_mining_rewards);
-
+                            info!("STEP 2 MINTED: {:#?}", mint);
                             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
+                            //UPDATE METADATA
                             let metadata = json!({"ipfs":{"root_hash": proof.hash}});
-
                             info!(
-                                "updating_metadata: {:?} {:?} {:#?}",
+                                "Updating_metadata: {:?} {:?} {:#?}",
                                 class_id, asset_id, metadata
                             );
                             let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
@@ -392,11 +395,117 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                                 },
                             )
                             .await;
-                            info!("{:#?}", update_metadata);
+                            info!("STEP 3 UPDATED METADATA: {:#?}", update_metadata);
                         }
                     }
                 }
+                println!(
+                    "DAY: {} CYCLE: {} REWARDS: {}",
+                    cycle / NUMBER_CYCLES_TO_ADVANCE as i64,
+                    cycle,
+                    daily_rewards
+                );
+                tokio::time::sleep(time::Duration::from_millis(HOUR_TO_MILISECONDS)).await;
             }
         });
     });
+}
+
+async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput) -> f64 {
+    let mut daily_rewards = 0.0;
+    let pool_id = get_account_pool_id(seeded.account.clone()).await;
+    let user_manifests = get_manifests(pool_id, None, Some(seeded.account.clone())).await;
+    if let Ok(user_manifests) = user_manifests {
+        let user_size = get_cumulative_size(&user_manifests).await as f64;
+        let user_participation = user_size / network_size;
+
+        let daily_storage_rewards =
+            calculate_and_update_storage_rewards(&user_manifests, &seeded).await;
+
+        let daily_storage_rewards = daily_storage_rewards * user_participation;
+        daily_rewards += daily_storage_rewards;
+
+        let daily_mining_rewards = DAILY_TOKENS_MINING as f64 * user_participation;
+        daily_rewards += daily_mining_rewards;
+
+        return daily_rewards;
+    } else {
+        return daily_rewards;
+    }
+}
+
+pub async fn calculate_and_update_storage_rewards(
+    manifests: &GetAllManifestsOutput,
+    seeded: &SeededAccountOutput,
+) -> f64 {
+    let mut cumulative_storage_rewards = 0.0;
+    //Storage provided by user
+    let client = ipfs_api::IpfsClient::default();
+
+    for manifest in manifests.manifests.iter() {
+        let mut updated_data = ManifestStorageData {
+            active_cycles: manifest.manifest_storage_data.active_cycles,
+            missed_cycles: manifest.manifest_storage_data.missed_cycles,
+            active_days: manifest.manifest_storage_data.active_days,
+        };
+        if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(
+            manifest.manifest_data.manifest_metadata.clone(),
+        ) {
+            if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await {
+                // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
+                if manifest.manifest_storage_data.active_cycles == NUMBER_CYCLES_TO_ADVANCE {
+                    let active_days = manifest.manifest_storage_data.active_days + 1;
+
+                    // The calculation of the storage rewards
+                    cumulative_storage_rewards += (1 as f64
+                        / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
+                        * DAILY_TOKENS_STORAGE;
+
+                    updated_data.active_days += 1;
+                    updated_data.active_cycles = 0;
+                } else {
+                    updated_data.active_cycles += 1;
+                }
+            } else {
+                // If the verification of the IPFS File failed {NUMBER_CYCLES_TO_RESET} times, the active_days are reset to 0
+                if manifest.manifest_storage_data.missed_cycles == NUMBER_CYCLES_TO_RESET {
+                    updated_data.missed_cycles = 0;
+                    updated_data.active_days = 0;
+                } else {
+                    // If the times failed are lower, the missed cycles are increased
+                    updated_data.missed_cycles += 1;
+                }
+            }
+        }
+        // Updated the values of the Storage Data in the Manifest
+        let _manifest_updated = updated_storage_data(
+            seeded.seed.clone(),
+            manifest.manifest_data.manifest_metadata.clone(),
+            manifest.pool_id,
+            updated_data,
+        )
+        .await;
+    }
+    return cumulative_storage_rewards;
+}
+
+async fn updated_storage_data(
+    seed: Seed,
+    manifest_metadata: serde_json::Value,
+    pool_id: PoolId,
+    manifest_storage_data: ManifestStorageData,
+) -> Result<ManifestUpdatedOutput, RequestError> {
+    let manifest: Result<fula::ManifestUpdatedOutput, _> = req(
+        "fula/manifest",
+        fula::UpdateManifestInput {
+            seed,
+            manifest_metadata,
+            pool_id,
+            active_days: manifest_storage_data.active_days,
+            active_cycles: manifest_storage_data.active_cycles,
+            missed_cycles: manifest_storage_data.missed_cycles,
+        },
+    )
+    .await;
+    return manifest;
 }
