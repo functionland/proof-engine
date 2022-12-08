@@ -446,21 +446,13 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
         daily_storage_rewards: 0.0,
     };
     let pool_id = get_account_pool_id(seeded.account.clone()).await;
-    let user_manifests = get_manifests(pool_id, None, Some(seeded.account.clone())).await;
-    if let Ok(user_manifests) = user_manifests {
-        let user_size = get_cumulative_size(&user_manifests).await as f64;
-        let user_participation = user_size / network_size;
 
-        if let Ok(storer_manifest_data) =
-            get_manifests_storage_data(pool_id, None, Some(seeded.account.clone())).await
-        {
-            rewards = calculate_and_update_storage_rewards(
-                &storer_manifest_data,
-                &seeded,
-                user_participation,
-            )
-            .await;
-        }
+    if let Ok(storer_manifest_data) =
+        get_manifests_storage_data(pool_id, None, Some(seeded.account.clone())).await
+    {
+        rewards =
+            calculate_and_update_storage_rewards(&storer_manifest_data, &seeded, network_size)
+                .await;
 
         return rewards;
     } else {
@@ -471,18 +463,17 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
 pub async fn calculate_and_update_storage_rewards(
     manifests: &GetAllManifestsStorerDataOutput,
     seeded: &SeededAccountOutput,
-    user_participation: f64,
+    network_size: f64,
 ) -> Rewards {
     let mut rewards = Rewards {
         daily_mining_rewards: 0.0,
         daily_storage_rewards: 0.0,
     };
 
-    // let mut cumulative_storage_rewards = 0.0;
-    //Storage provided by user
     let client = ipfs_api::IpfsClient::default();
 
     for manifest in manifests.manifests.iter() {
+        let mut file_participation = 0.0;
         let mut updated_data = UpdateManifestInput {
             seed: seeded.seed.clone(),
             pool_id: manifest.pool_id,
@@ -495,6 +486,12 @@ pub async fn calculate_and_update_storage_rewards(
             .pin_ls(Some(&String::from(&manifest.cid.clone())), None)
             .await
         {
+            if let Ok(file_check) = client
+                .block_stat(&String::from(&manifest.cid.clone()))
+                .await
+            {
+                file_participation = file_check.size as f64 / network_size;
+            }
             // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
             if manifest.active_cycles >= NUMBER_CYCLES_TO_ADVANCE {
                 let active_days = manifest.active_days + 1;
@@ -502,7 +499,11 @@ pub async fn calculate_and_update_storage_rewards(
                 // The calculation of the storage rewards
                 rewards.daily_storage_rewards += (1 as f64
                     / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
-                    * DAILY_TOKENS_STORAGE;
+                    * DAILY_TOKENS_STORAGE
+                    * file_participation;
+
+                // The calculation of the mining rewards
+                rewards.daily_mining_rewards += DAILY_TOKENS_MINING as f64 * file_participation;
 
                 updated_data.active_days += 1;
                 updated_data.active_cycles = 0;
@@ -522,8 +523,6 @@ pub async fn calculate_and_update_storage_rewards(
         // Updated the values of the Storage Data in the Manifest
         let _manifest_updated = updated_storage_data(updated_data).await;
     }
-    rewards.daily_storage_rewards *= user_participation;
-    rewards.daily_mining_rewards += DAILY_TOKENS_MINING as f64 * user_participation;
     return rewards;
 }
 
