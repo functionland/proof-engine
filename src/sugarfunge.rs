@@ -16,7 +16,7 @@ const YEARLY_TOKENS: u64 = 48000000;
 const DAILY_TOKENS_MINING: f64 = YEARLY_TOKENS as f64 * 0.70 / (12 * 30) as f64;
 const DAILY_TOKENS_STORAGE: f64 = YEARLY_TOKENS as f64 * 0.20 / (12 * 30) as f64;
 
-const NUMBER_CYCLES_TO_ADVANCE: u16 = 24;
+const NUMBER_CYCLES_TO_ADVANCE: u16 = 2;
 const NUMBER_CYCLES_TO_RESET: u16 = 4;
 
 const HOUR_TO_MILISECONDS: u64 = 500; // Should be 3600000 seconds in a day
@@ -100,6 +100,23 @@ async fn get_manifests(
             uploader,
             pool_id,
             storage,
+        },
+    )
+    .await;
+    return manifests;
+}
+
+async fn get_manifests_storage_data(
+    pool_id: Option<PoolId>,
+    cid: Option<Cid>,
+    storer: Option<Account>,
+) -> Result<GetAllManifestsStorerDataOutput, RequestError> {
+    let manifests: Result<fula::GetAllManifestsStorerDataOutput, _> = req(
+        "fula/manifest/storer_data",
+        fula::GetAllManifestsStorerDataInput {
+            pool_id,
+            storer,
+            cid,
         },
     )
     .await;
@@ -345,66 +362,63 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
             for cycle in 1..YEAR_TO_HOURS {
                 let mut daily_rewards = 0.0;
-                if let Ok(proof) = sugar_rx.try_recv() {
-                    let all_manifests = get_manifests(None, None, None).await;
+                let all_manifests = get_manifests(None, None, None).await;
 
-                    if let Ok(current_all_manifests) = all_manifests {
-                        if current_all_manifests.manifests.len() > 0 {
-                            //CALCULATE DAILY REWARDS
-                            let network_size =
-                                get_cumulative_size(&current_all_manifests).await as f64;
-                            let rewards = calculate_daily_rewards(network_size, &seeded).await;
-                            info!("STEP 1: CALCULATE REWARDS:");
-                            info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
-                            info!("  Mining Rewards: {:?}", rewards.daily_storage_rewards);
+                if let Ok(current_all_manifests) = all_manifests {
+                    if current_all_manifests.manifests.len() > 0 {
+                        //CALCULATE DAILY REWARDS
+                        let network_size = get_cumulative_size(&current_all_manifests).await as f64;
+                        let rewards = calculate_daily_rewards(network_size, &seeded).await;
+                        info!("STEP 1: CALCULATE REWARDS:");
+                        info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
+                        info!("  Mining Rewards: {:?}", rewards.daily_storage_rewards);
 
-                            daily_rewards += rewards.daily_storage_rewards;
-                            daily_rewards += rewards.daily_mining_rewards;
+                        daily_rewards += rewards.daily_storage_rewards;
+                        daily_rewards += rewards.daily_mining_rewards;
 
-                            if daily_rewards > 0.0 {
-                                //MINT DAILY REWARDS
-                                let mint: asset::MintOutput = match req(
-                                    "asset/mint",
-                                    asset::MintInput {
-                                        seed: operator.seed.clone(),
-                                        class_id,
-                                        asset_id,
-                                        to: seeded.account.clone(),
-                                        amount: Balance::from((daily_rewards) as u128),
-                                    },
-                                )
-                                .await
-                                {
-                                    Ok(mint) => mint,
-                                    Err(err) => {
-                                        error!("mint: {:#?}", err);
-                                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                                        continue;
-                                    }
-                                };
-                                info!("STEP 2: MINTED: {:#?}", mint);
-                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        if daily_rewards > 0.0 {
+                            //MINT DAILY REWARDS
+                            let mint: asset::MintOutput = match req(
+                                "asset/mint",
+                                asset::MintInput {
+                                    seed: operator.seed.clone(),
+                                    class_id,
+                                    asset_id,
+                                    to: seeded.account.clone(),
+                                    amount: Balance::from((daily_rewards) as u128),
+                                },
+                            )
+                            .await
+                            {
+                                Ok(mint) => mint,
+                                Err(err) => {
+                                    error!("mint: {:#?}", err);
+                                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                    continue;
+                                }
+                            };
+                            info!("STEP 2: MINTED: {:#?}", mint);
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-                                //UPDATE METADATA
-                                let metadata = json!({"ipfs":{"root_hash": proof.hash}});
-                                info!(
-                                    "Updating_metadata: {:?} {:?} {:#?}",
-                                    class_id, asset_id, metadata
-                                );
-                                let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
-                                    "asset/update_metadata",
-                                    asset::UpdateMetadataInput {
-                                        seed: operator.seed.clone(),
-                                        class_id,
-                                        asset_id,
-                                        metadata: metadata.clone(),
-                                    },
-                                )
-                                .await;
-                                info!("STEP 3: UPDATED METADATA: {:#?}", update_metadata);
-                            } else {
-                                info!("STEP 2: NO REWARDS TO BE MINTED");
-                            }
+                            //UPDATE METADATA
+                            let metadata = json!({"ipfs":{"root_hash": proof.hash}});
+                            info!(
+                                "Updating_metadata: {:?} {:?} {:#?}",
+                                class_id, asset_id, metadata
+                            );
+                            let update_metadata: Result<asset::UpdateMetadataOutput, _> = req(
+                                "asset/update_metadata",
+                                asset::UpdateMetadataInput {
+                                    seed: operator.seed.clone(),
+                                    class_id,
+                                    asset_id,
+                                    metadata: metadata.clone(),
+                                },
+                            )
+                            .await;
+                            info!("STEP 3: UPDATED METADATA: {:#?}", update_metadata);
+                        } else {
+                            info!("STEP 2: NO REWARDS TO BE MINTED");
                         }
                     }
                 }
@@ -437,9 +451,16 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
         let user_size = get_cumulative_size(&user_manifests).await as f64;
         let user_participation = user_size / network_size;
 
-        rewards =
-            calculate_and_update_storage_rewards(&user_manifests, &seeded, user_participation)
-                .await;
+        if let Ok(storer_manifest_data) =
+            get_manifests_storage_data(pool_id, None, Some(seeded.account.clone())).await
+        {
+            rewards = calculate_and_update_storage_rewards(
+                &storer_manifest_data,
+                &seeded,
+                user_participation,
+            )
+            .await;
+        }
 
         return rewards;
     } else {
@@ -448,7 +469,7 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
 }
 
 pub async fn calculate_and_update_storage_rewards(
-    manifests: &GetAllManifestsOutput,
+    manifests: &GetAllManifestsStorerDataOutput,
     seeded: &SeededAccountOutput,
     user_participation: f64,
 ) -> Rewards {
@@ -462,72 +483,53 @@ pub async fn calculate_and_update_storage_rewards(
     let client = ipfs_api::IpfsClient::default();
 
     for manifest in manifests.manifests.iter() {
-        let mut updated_data = ManifestStorageData {
-            active_cycles: manifest.manifest_storage_data.active_cycles,
-            missed_cycles: manifest.manifest_storage_data.missed_cycles,
-            active_days: manifest.manifest_storage_data.active_days,
+        let mut updated_data = UpdateManifestInput {
+            seed: seeded.seed.clone(),
+            pool_id: manifest.pool_id,
+            cid: manifest.cid.clone(),
+            active_cycles: manifest.active_cycles,
+            missed_cycles: manifest.missed_cycles,
+            active_days: manifest.active_days,
         };
-        if let Ok(current_manifest) = serde_json::from_value::<crate::manifest::Manifest>(
-            manifest.manifest_data.manifest_metadata.clone(),
-        ) {
-            if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await {
-                // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
-                if manifest.manifest_storage_data.active_cycles == NUMBER_CYCLES_TO_ADVANCE {
-                    let active_days = manifest.manifest_storage_data.active_days + 1;
+        if let Ok(_req) = client
+            .pin_ls(Some(&String::from(&manifest.cid.clone())), None)
+            .await
+        {
+            // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
+            if manifest.active_cycles >= NUMBER_CYCLES_TO_ADVANCE {
+                let active_days = manifest.active_days + 1;
 
-                    // The calculation of the storage rewards
-                    rewards.daily_storage_rewards += (1 as f64
-                        / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
-                        * DAILY_TOKENS_STORAGE
-                        * user_participation;
+                // The calculation of the storage rewards
+                rewards.daily_storage_rewards += (1 as f64
+                    / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
+                    * DAILY_TOKENS_STORAGE;
 
-                    rewards.daily_mining_rewards = DAILY_TOKENS_MINING as f64 * user_participation;
-
-                    updated_data.active_days += 1;
-                    updated_data.active_cycles = 0;
-                } else {
-                    updated_data.active_cycles += 1;
-                }
+                updated_data.active_days += 1;
+                updated_data.active_cycles = 0;
             } else {
-                // If the verification of the IPFS File failed {NUMBER_CYCLES_TO_RESET} times, the active_days are reset to 0
-                if manifest.manifest_storage_data.missed_cycles == NUMBER_CYCLES_TO_RESET {
-                    updated_data.missed_cycles = 0;
-                    updated_data.active_days = 0;
-                } else {
-                    // If the times failed are lower, the missed cycles are increased
-                    updated_data.missed_cycles += 1;
-                }
+                updated_data.active_cycles += 1;
+            }
+        } else {
+            // If the verification of the IPFS File failed {NUMBER_CYCLES_TO_RESET} times, the active_days are reset to 0
+            if manifest.missed_cycles >= NUMBER_CYCLES_TO_RESET {
+                updated_data.missed_cycles = 0;
+                updated_data.active_days = 0;
+            } else {
+                // If the times failed are lower, the missed cycles are increased
+                updated_data.missed_cycles += 1;
             }
         }
         // Updated the values of the Storage Data in the Manifest
-        let _manifest_updated = updated_storage_data(
-            seeded.seed.clone(),
-            manifest.manifest_data.manifest_metadata.clone(),
-            manifest.pool_id,
-            updated_data,
-        )
-        .await;
+        let _manifest_updated = updated_storage_data(updated_data).await;
     }
+    rewards.daily_storage_rewards *= user_participation;
+    rewards.daily_mining_rewards += DAILY_TOKENS_MINING as f64 * user_participation;
     return rewards;
 }
 
 async fn updated_storage_data(
-    seed: Seed,
-    manifest_metadata: serde_json::Value,
-    pool_id: PoolId,
-    manifest_storage_data: ManifestStorageData,
+    input: UpdateManifestInput,
 ) -> Result<ManifestUpdatedOutput, RequestError> {
-    let manifest: Result<fula::ManifestUpdatedOutput, _> = req(
-        "fula/manifest",
-        fula::UpdateManifestInput {
-            seed,
-            manifest_metadata,
-            pool_id,
-            active_days: manifest_storage_data.active_days,
-            active_cycles: manifest_storage_data.active_cycles,
-            missed_cycles: manifest_storage_data.missed_cycles,
-        },
-    )
-    .await;
+    let manifest: Result<fula::ManifestUpdatedOutput, _> = req("fula/manifest/update", input).await;
     return manifest;
 }
