@@ -16,7 +16,7 @@ const YEARLY_TOKENS: u64 = 48000000;
 const DAILY_TOKENS_MINING: f64 = YEARLY_TOKENS as f64 * 0.70 / (12 * 30) as f64;
 const DAILY_TOKENS_STORAGE: f64 = YEARLY_TOKENS as f64 * 0.20 / (12 * 30) as f64;
 
-const NUMBER_CYCLES_TO_ADVANCE: u16 = 2;
+const NUMBER_CYCLES_TO_ADVANCE: u16 = 3;
 const NUMBER_CYCLES_TO_RESET: u16 = 4;
 
 const HOUR_TO_MILISECONDS: u64 = 500; // Should be 3600000 seconds in a day
@@ -371,7 +371,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                         let rewards = calculate_daily_rewards(network_size, &seeded).await;
                         info!("STEP 1: CALCULATE REWARDS:");
                         info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
-                        info!("  Mining Rewards: {:?}", rewards.daily_storage_rewards);
+                        info!("  Storage Rewards: {:?}", rewards.daily_storage_rewards);
 
                         daily_rewards += rewards.daily_storage_rewards;
                         daily_rewards += rewards.daily_mining_rewards;
