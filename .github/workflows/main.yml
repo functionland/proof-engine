@@ -2,7 +2,7 @@ name: DockerBuildPush
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ main ]
 jobs:
     build-arm64:
         runs-on: [self-hosted, linux, ARM64]
