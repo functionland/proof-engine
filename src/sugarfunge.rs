@@ -447,6 +447,10 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
     };
     let pool_id = get_account_pool_id(seeded.account.clone()).await;
 
+    if let Ok(current_manifests) = get_manifests(None, None, Some(seeded.account.clone())).await {
+        validate_current_manifests(&current_manifests, &seeded, pool_id).await;
+    }
+
     if let Ok(storer_manifest_data) =
         get_manifests_storage_data(pool_id, None, Some(seeded.account.clone())).await
     {
@@ -531,4 +535,42 @@ async fn updated_storage_data(
 ) -> Result<ManifestUpdatedOutput, RequestError> {
     let manifest: Result<fula::ManifestUpdatedOutput, _> = req("fula/manifest/update", input).await;
     return manifest;
+}
+
+pub async fn validate_current_manifests(
+    manifests: &GetAllManifestsOutput,
+    seeded: &SeededAccountOutput,
+    pool_id: Option<PoolId>,
+) {
+    for manifest in manifests.manifests.iter() {
+        let mut flag = false;
+        let remove_data = RemoveStoringManifestInput {
+            seed: seeded.seed.clone(),
+            uploader: manifest.manifest_data.uploader.clone(),
+            cid: Cid::from(
+                manifest.manifest_data.manifest_metadata["job"]["uri"]
+                    .to_string()
+                    .replace("\"", ""),
+            ),
+            pool_id: manifest.pool_id,
+        };
+        if let Some(pool_id_value) = pool_id {
+            if u32::from(pool_id_value) != u32::from(manifest.pool_id) {
+                flag = true;
+            }
+        } else {
+            flag = true;
+        }
+        if flag {
+            let _manifest_removed = remove_manifest(remove_data).await;
+        }
+    }
+}
+
+async fn remove_manifest(
+    input: RemoveStoringManifestInput,
+) -> Result<RemoveStoringManifestOutput, RequestError> {
+    let manifest_removed: Result<fula::RemoveStoringManifestOutput, _> =
+        req("fula/manifest/remove_stored_manifest", input).await;
+    return manifest_removed;
 }
