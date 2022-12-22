@@ -553,7 +553,6 @@ pub async fn validate_current_manifests(
             ),
             pool_id: manifest.pool_id,
         };
-        info!("Remove data  {:#?}", remove_data); 
         if let Some(pool_id_value) = pool_id {
             if u32::from(pool_id_value) != u32::from(manifest.pool_id) {
                 let _manifest_removed = remove_manifest(remove_data).await;
