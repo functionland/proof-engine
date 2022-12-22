@@ -156,7 +156,7 @@ pub async fn get_cumulative_size(manifests: &GetAllManifestsOutput) -> u64 {
             if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await {
                 if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
                     info!("VERIFICATION✅:  {:#?}", file_check);
-                    cumulative_size += file_check.size;
+                    cumulative_size += file_check.size * value.storage.len() as u64;
                 }
             }
         }
@@ -362,6 +362,10 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
             for cycle in 1..YEAR_TO_HOURS {
                 let mut daily_rewards = 0.0;
+                let pool_id = get_account_pool_id(seeded.account.clone()).await;
+                if let Ok(validate_manifests) = get_manifests(None, None, Some(seeded.account.clone())).await {
+                    validate_current_manifests(&validate_manifests, &seeded, pool_id).await;
+                }
                 let all_manifests = get_manifests(None, None, None).await;
 
                 if let Ok(current_all_manifests) = all_manifests {
@@ -446,10 +450,6 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
         daily_storage_rewards: 0.0,
     };
     let pool_id = get_account_pool_id(seeded.account.clone()).await;
-
-    if let Ok(current_manifests) = get_manifests(None, None, Some(seeded.account.clone())).await {
-        validate_current_manifests(&current_manifests, &seeded, pool_id).await;
-    }
 
     if let Ok(storer_manifest_data) =
         get_manifests_storage_data(pool_id, None, Some(seeded.account.clone())).await
@@ -543,7 +543,6 @@ pub async fn validate_current_manifests(
     pool_id: Option<PoolId>,
 ) {
     for manifest in manifests.manifests.iter() {
-        let mut flag = false;
         let remove_data = RemoveStoringManifestInput {
             seed: seeded.seed.clone(),
             uploader: manifest.manifest_data.uploader.clone(),
@@ -554,14 +553,12 @@ pub async fn validate_current_manifests(
             ),
             pool_id: manifest.pool_id,
         };
+        info!("Remove data  {:#?}", remove_data); 
         if let Some(pool_id_value) = pool_id {
             if u32::from(pool_id_value) != u32::from(manifest.pool_id) {
-                flag = true;
+                let _manifest_removed = remove_manifest(remove_data).await;
             }
         } else {
-            flag = true;
-        }
-        if flag {
             let _manifest_removed = remove_manifest(remove_data).await;
         }
     }
