@@ -156,7 +156,7 @@ pub async fn get_cumulative_size(manifests: &GetAllManifestsOutput) -> u64 {
             if let Ok(_req) = client.pin_ls(Some(&current_manifest.job.uri), None).await {
                 if let Ok(file_check) = client.block_stat(&current_manifest.job.uri).await {
                     info!("VERIFICATION✅:  {:#?}", file_check);
-                    cumulative_size += file_check.size;
+                    cumulative_size += file_check.size * value.storage.len() as u64;
                 }
             }
         }
@@ -362,6 +362,10 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
             for cycle in 1..YEAR_TO_HOURS {
                 let mut daily_rewards = 0.0;
+                let pool_id = get_account_pool_id(seeded.account.clone()).await;
+                if let Ok(validate_manifests) = get_manifests(None, None, Some(seeded.account.clone())).await {
+                    validate_current_manifests(&validate_manifests, &seeded, pool_id).await;
+                }
                 let all_manifests = get_manifests(None, None, None).await;
 
                 if let Ok(current_all_manifests) = all_manifests {
@@ -531,4 +535,38 @@ async fn updated_storage_data(
 ) -> Result<ManifestUpdatedOutput, RequestError> {
     let manifest: Result<fula::ManifestUpdatedOutput, _> = req("fula/manifest/update", input).await;
     return manifest;
+}
+
+pub async fn validate_current_manifests(
+    manifests: &GetAllManifestsOutput,
+    seeded: &SeededAccountOutput,
+    pool_id: Option<PoolId>,
+) {
+    for manifest in manifests.manifests.iter() {
+        let remove_data = RemoveStoringManifestInput {
+            seed: seeded.seed.clone(),
+            uploader: manifest.manifest_data.uploader.clone(),
+            cid: Cid::from(
+                manifest.manifest_data.manifest_metadata["job"]["uri"]
+                    .to_string()
+                    .replace("\"", ""),
+            ),
+            pool_id: manifest.pool_id,
+        };
+        if let Some(pool_id_value) = pool_id {
+            if u32::from(pool_id_value) != u32::from(manifest.pool_id) {
+                let _manifest_removed = remove_manifest(remove_data).await;
+            }
+        } else {
+            let _manifest_removed = remove_manifest(remove_data).await;
+        }
+    }
+}
+
+async fn remove_manifest(
+    input: RemoveStoringManifestInput,
+) -> Result<RemoveStoringManifestOutput, RequestError> {
+    let manifest_removed: Result<fula::RemoveStoringManifestOutput, _> =
+        req("fula/manifest/remove_stored_manifest", input).await;
+    return manifest_removed;
 }
