@@ -422,7 +422,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
 
                 // Verify if there is a file in the chain storage that the user is storaging where the size is unknown on-chain
                 if let Ok(verify_file_size_response) = verify_file_size(VerifyFileSizeInput {
-                    seed: seeded.seed.clone(),
+                    account: seeded.account.clone(),
                 })
                 .await
                 {
@@ -443,7 +443,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 // Verify if there is an Open challenge for the user, if there is a challenge verify the cid content of the user
                 if let Ok(verify_pending_challenge_response) =
                     verify_pending_challenge(VerifyPendingChallengeInput {
-                        seed: seeded.seed.clone(),
+                        account: seeded.account.clone(),
                     })
                     .await
                 {
