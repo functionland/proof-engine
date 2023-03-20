@@ -469,11 +469,14 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 }
 
                 // Generate a random challenge each cycle
-                let generated_challenge = generate_challenge(GenerateChallengeInput {
+                if let Ok(generated_challenge) = generate_challenge(GenerateChallengeInput {
                     seed: seeded.seed.clone(),
                 })
-                .await;
-                info!("STEP 1: GENERATED CHALLENGE {:#?}", generated_challenge);
+                .await {
+                    info!("STEP 2: GENERATED CHALLENGE {:#?}", generated_challenge);
+                } else {
+                    info!("STEP 2: NO ACCOUNTS TO CHALLENGE");
+                }
 
                 // Get all the manifests from the network on-chain
                 let all_manifests = get_manifests(None, None, None).await;
@@ -488,30 +491,25 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                         // Calculate the labor tokens corresponded for the user
                         let rewards = calculate_daily_rewards(network_size, &seeded).await;
 
-                        info!("STEP 2: CALCULATE REWARDS:");
+                        info!("STEP 3: CALCULATE REWARDS:");
                         info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
                         info!("  Storage Rewards: {:?}", rewards.daily_storage_rewards);
 
                         daily_rewards += rewards.daily_storage_rewards;
                         daily_rewards += rewards.daily_mining_rewards;
 
-                        // If the total labor tokens of the cycle is above 0 they are minted to the user account
-                        if daily_rewards > 0.0 {
-                            //MINT DAILY REWARDS
-                            if let Some(pool_id) = pool_id {
-                                let mint = mint_labor_tokens(MintLaborTokensInput {
-                                    seed: seeded.seed.clone(),
-                                    pool_id,
-                                    class_id: class_id_labor,
-                                    asset_id,
-                                })
-                                .await;
-                                info!("STEP 3: MINT LABOR TOKENS: {:#?}", mint);
-                            } else {
-                                info!("STEP 3: ERROR WHEN TRIED TO MINT LABOR TOKENS: INVALID POOL_ID");
-                            }
+                        //MINT DAILY REWARDS
+                        if let Some(pool_id) = pool_id {
+                            let mint = mint_labor_tokens(MintLaborTokensInput {
+                                seed: seeded.seed.clone(),
+                                pool_id,
+                                class_id: class_id_labor,
+                                asset_id,
+                            })
+                            .await;
+                            info!("STEP 4: MINT LABOR TOKENS: {:#?}", mint);
                         } else {
-                            info!("STEP 3: NO LABOR TOKENS TO BE MINTED");
+                            info!("STEP 4: ERROR WHEN TRIED TO MINT LABOR TOKENS: INVALID POOL_ID");
                         }
                     }
                 }
