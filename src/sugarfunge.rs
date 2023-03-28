@@ -502,7 +502,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                         if let Some(pool_id) = pool_id {
                             let mint = mint_labor_tokens(MintLaborTokensInput {
                                 seed: seeded.seed.clone(),
-                                pool_id,
+                                amount: Balance::try_from(daily_rewards as u128).unwrap() ,
                                 class_id: class_id_labor,
                                 asset_id,
                             })
