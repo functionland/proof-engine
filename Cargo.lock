@@ -6019,7 +6019,7 @@ dependencies = [
 [[package]]
 name = "sugarfunge-api-types"
 version = "0.1.0"
-source = "git+https://github.com/functionland/sugarfunge-api.git?rev=7129ad5b2773cc951ad465162c013dd0387c17c7#7129ad5b2773cc951ad465162c013dd0387c17c7"
+source = "git+https://github.com/functionland/sugarfunge-api.git?rev=1c2d05370f89a3dc62d07e00607f860fcdd6e18e#1c2d05370f89a3dc62d07e00607f860fcdd6e18e"
 dependencies = [
  "bevy_derive 0.9.1",
  "parity-scale-codec",
