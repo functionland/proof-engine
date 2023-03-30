@@ -5,8 +5,8 @@ use ipfs_api::IpfsApi;
 use ipfs_api_backend_hyper as ipfs_api;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+//use std::collections::hash_map::DefaultHasher;
+//use std::hash::{Hash, Hasher};
 use std::time;
 use structopt::StructOpt;
 use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, *};
@@ -89,11 +89,11 @@ where
     }
 }
 
-fn calculate_hash<T: Hash>(t: &T) -> u64 {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish()
-}
+// fn calculate_hash<T: Hash>(t: &T) -> u64 {
+//     let mut s = DefaultHasher::new();
+//     t.hash(&mut s);
+//     s.finish()
+// }
 
 async fn get_manifests(
     pool_id: Option<PoolId>,
@@ -357,14 +357,16 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             let proof = sugar_rx.recv().unwrap();
             let cmd_opts = Opt::from_args();
             let class_id_labor = *cmd_opts.class_id;
+            let asset_id_labor= *cmd_opts.asset_id;
             // let class_id_challenge = ClassId:: + 1;
             let ipfs_seed = format!("//fula/dev/2/{}", &proof.peer_id);
-            let asset_id = calculate_hash(&ipfs_seed);
-            let asset_id = AssetId::from(asset_id);
+            
+            //let asset_id = calculate_hash(&ipfs_seed);
+            //let asset_id = AssetId::from(asset_id);
 
             info!(
                 "VERIFICATION: ClassId {:?}, AssetId {:?}",
-                class_id_labor, asset_id
+                class_id_labor, asset_id_labor
             );
 
             //Health Request Loop
@@ -403,7 +405,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             )
             .await;
 
-            verify_asset_info(class_id_labor, asset_id, operator.seed.clone()).await;
+            verify_asset_info(class_id_labor, asset_id_labor, operator.seed.clone()).await;
 
             //Executing the Calculation, Mint and Update of rewards
 
@@ -460,7 +462,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                                     pool_id: pool_id,
                                     cids: get_vec_cid_from_manifest_storer_data(value.manifests),
                                     class_id: ClassId::from(u64::from(class_id_labor) + 10),
-                                    asset_id,
+                                    asset_id: asset_id_labor,
                                 })
                                 .await;
                             }
@@ -499,12 +501,12 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                         daily_rewards += rewards.daily_mining_rewards;
 
                         //MINT DAILY REWARDS
-                        if let Some(pool_id) = pool_id {
+                        if let Some(_pool_id) = pool_id {
                             let mint = mint_labor_tokens(MintLaborTokensInput {
                                 seed: seeded.seed.clone(),
                                 amount: Balance::try_from(daily_rewards as u128).unwrap(),
                                 class_id: class_id_labor,
-                                asset_id,
+                                asset_id: asset_id_labor,
                             })
                             .await;
                             info!("STEP 4: MINT LABOR TOKENS: {:#?}", mint);

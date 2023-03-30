@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::ffi::OsStr;
 use structopt::StructOpt;
 // use ipfs_api_backend_hyper as ipfs_api;
-use sugarfunge_api_types::primitives::ClassId;
+use sugarfunge_api_types::primitives::{ClassId, AssetId};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "fula-funge", about = "Fula Box proof engine.")]
@@ -13,6 +13,9 @@ pub struct Opt {
     /// SugarFunge pool class_id
     #[structopt(long = "pool-id", parse(from_os_str))]
     pub class_id: OptClassId,
+    /// SugarFunge pool asset_id
+    #[structopt(long = "asset-id", parse(from_os_str))]
+    pub asset_id: OptAssetId,
 }
 
 #[derive(Debug, Deref)]
@@ -45,5 +48,17 @@ impl From<&OsStr> for OptClassId {
         let class_id: u64 = os_str.parse().unwrap();
         let class_id = ClassId::from(class_id);
         OptClassId(class_id)
+    }
+}
+
+#[derive(Debug, Deref)]
+pub struct OptAssetId(AssetId);
+
+impl From<&OsStr> for OptAssetId {
+    fn from(os_str: &OsStr) -> Self {
+        let os_str = os_str.to_str().unwrap();
+        let asset_id: u64 = os_str.parse().unwrap();
+        let asset_id = AssetId::from(asset_id);
+        OptAssetId(asset_id)
     }
 }
