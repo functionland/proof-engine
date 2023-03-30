@@ -38,4 +38,4 @@ ENV HOME /home/$USERNAME
 WORKDIR $HOME
 
 ENTRYPOINT ["./proof-engine"]
-CMD ["//Alice", "--pool-id", "1000000"]
+CMD ["//Alice", "--pool-id", "1000000", "--asset-id", "1000000"]
