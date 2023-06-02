@@ -293,7 +293,7 @@ async fn register_account(seeded_account: Account, operator_seed: Seed) {
         .await
         .unwrap();
         if u128::from(fund.amount) > 0 {
-            warn!("WARNING: registered: {:?}", seeded_account);
+            info!("CREATION: registered: {:?}", seeded_account);
         } else {
             error!("ERROR: could not register account");
         }
@@ -406,6 +406,15 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             .await;
 
             verify_asset_info(class_id_labor, asset_id_labor, operator.seed.clone()).await;
+
+            verify_class_info(
+                ClassId::from(u64::from(class_id_labor) + 10),
+                operator.seed.clone(),
+                operator.account.clone(),
+            )
+            .await;
+
+            verify_asset_info(ClassId::from(u64::from(class_id_labor) + 10), asset_id_labor, operator.seed.clone()).await;
 
             //Executing the Calculation, Mint and Update of rewards
 
