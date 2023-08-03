@@ -1,6 +1,7 @@
 use crate::{common::TokioRuntime, sugarfunge};
 use bevy::prelude::*;
 use crossbeam::channel;
+// SBP-M1 review: nest use statements
 use ipfs_api::IpfsApi;
 use ipfs_api::{Logger, LoggingLevel};
 pub use ipfs_api_backend_hyper as ipfs_api;
@@ -30,6 +31,7 @@ pub struct ProofEngine {
 
 pub fn handler(mut ipfs_stats: Query<&mut ProofEngine>, ipfs_rx: Res<Receiver<ProofEngine>>) {
     if let Ok(msg) = channel::Receiver::try_recv(&ipfs_rx) {
+        // SBP-M1 review: remove commented out code
         // println!("ipfs_stat: {:#?}", msg);
         for mut ipfs_stat in ipfs_stats.iter_mut() {
             *ipfs_stat = msg.clone();
@@ -98,6 +100,7 @@ pub fn launch(
                     }
                 };
 
+                // SBP-M1 review: remove commented out code
                 // debug!("{:#?}", root_stat);
 
                 if root_hash != root_stat.hash {
