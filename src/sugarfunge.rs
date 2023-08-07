@@ -5,20 +5,24 @@ use ipfs_api::IpfsApi;
 use ipfs_api_backend_hyper as ipfs_api;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+// SBP-M1 review: remove commented out code
 //use std::collections::hash_map::DefaultHasher;
 //use std::hash::{Hash, Hasher};
 use std::time;
 use structopt::StructOpt;
 use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, *};
 
+// SBP-M1 review: group constants in code block
 const YEARLY_TOKENS: u64 = 48000000;
 
 const DAILY_TOKENS_MINING: f64 = YEARLY_TOKENS as f64 * 0.70 / (12 * 30) as f64;
 const DAILY_TOKENS_STORAGE: f64 = YEARLY_TOKENS as f64 * 0.20 / (12 * 30) as f64;
 
 const NUMBER_CYCLES_TO_ADVANCE: u16 = 3;
+// SBP-M1 review: remove commented out code
 // const NUMBER_CYCLES_TO_RESET: u16 = 4;
 
+// SBP-M1 review: typo MILISECONDS > MILLISECONDS
 const HOUR_TO_MILISECONDS: u64 = 500; // Should be 3600000 seconds in a day
 const YEAR_TO_HOURS: i64 = 360; // Should be 8640 hours in a year
 
@@ -47,6 +51,7 @@ pub struct Rewards {
     pub daily_storage_rewards: f64,
 }
 
+// SBP-M1 review: make endpoint configurable, defaulting to the below static value
 fn endpoint(cmd: &'static str) -> String {
     format!("http://127.0.0.1:4000/{}", cmd)
 }
@@ -89,6 +94,7 @@ where
     }
 }
 
+// SBP-M1 review: remove commented out code
 // fn calculate_hash<T: Hash>(t: &T) -> u64 {
 //     let mut s = DefaultHasher::new();
 //     t.hash(&mut s);
@@ -196,6 +202,7 @@ pub async fn get_file_sizes(cids: Vec<Cid>) -> (Vec<Cid>, Vec<u64>) {
     for cid in cids.iter() {
         if let Ok(_req) = client.pin_ls(Some(cid.as_str()), None).await {
             if let Ok(file_check) = client.block_stat(cid.as_str()).await {
+                // SBP-M1 review: remove commented out code
                 // info!("VERIFICATION✅:  {:#?}", file_check);
 
                 vec_sizes.push(file_check.size)
@@ -209,6 +216,7 @@ pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
     //Storage provided by user
     let client = ipfs_api::IpfsClient::default();
 
+    // SBP-M1 review: unclear on what the ramifications are of this being exposed. What can an attacker accomplish by constructing this seed based on peer ids obtained elsewhere?
     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
 
@@ -236,6 +244,7 @@ pub async fn get_cumulative_size_proof(peer_id: String) -> u64 {
 pub async fn get_blocks_proof(peer_id: String) -> u64 {
     let client = ipfs_api::IpfsClient::default();
 
+    // SBP-M1 review: unclear on what the ramifications are of this being exposed. What can an attacker accomplish by constructing this seed based on peer ids obtained elsewhere?
     let ipfs_seed = format!("//fula/dev/2/{}", peer_id);
     let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
 
@@ -259,6 +268,7 @@ pub async fn get_blocks_proof(peer_id: String) -> u64 {
     return blocks;
 }
 
+// SBP-M1 review: seems inefficient when this can be determined locally via same sp_core dependency used by api?
 async fn verify_account_seeded(seed: Seed) -> account::SeededAccountOutput {
     let seeded: account::SeededAccountOutput =
         req("account/seeded", account::SeededAccountInput { seed })
@@ -358,9 +368,12 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             let cmd_opts = Opt::from_args();
             let class_id_labor = *cmd_opts.class_id;
             let asset_id_labor= *cmd_opts.asset_id;
+            // SBP-M1 review: remove commented out code
             // let class_id_challenge = ClassId:: + 1;
+            // SBP-M1 review: unclear on what the ramifications are of this being exposed. What can an attacker accomplish by constructing this seed based on peer ids obtained elsewhere?
             let ipfs_seed = format!("//fula/dev/2/{}", &proof.peer_id);
-            
+
+            // SBP-M1 review: remove commented out code
             //let asset_id = calculate_hash(&ipfs_seed);
             //let asset_id = AssetId::from(asset_id);
 
@@ -422,6 +435,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 .await;
                 info!("STEP 1: VERIFY USER MANIFESTS {:#?}", user_manifests);
 
+                // SBP-M1 review: typo storaging > storing
                 // Verify if there is a file in the chain storage that the user is storaging where the size is unknown on-chain
                 if let Ok(verify_file_size_response) = verify_file_size(VerifyFileSizeInput {
                     account: seeded.account.clone(),
@@ -459,6 +473,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                             {
                                 let _result = verify_challenge(VerifyChallengeInput {
                                     seed: seeded.seed.clone(),
+                                    // SBP-M1 review: use initialization shorthand
                                     pool_id: pool_id,
                                     cids: get_vec_cid_from_manifest_storer_data(value.manifests),
                                     class_id: ClassId::from(u64::from(class_id_labor) + 10),
@@ -487,6 +502,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 if let Ok(current_all_manifests) = all_manifests {
                     // If there are no manifest in the network the calculation is skipped
                     if current_all_manifests.manifests.len() > 0 {
+                        // SBP-M1 review: typos - cummulative > cumulative and manifets > manifests
                         // Get the cummulative size of all the network manifets
                         let network_size = get_cumulative_size(&current_all_manifests).await as f64;
 
@@ -534,6 +550,7 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
     };
     let pool_id = get_account_pool_id(seeded.account.clone()).await;
 
+    // SBP-M1 review: lift return out of if
     if let Ok(storer_manifest_data) =
         get_manifests_storage_data(pool_id, Some(seeded.account.clone())).await
     {
@@ -574,6 +591,7 @@ pub async fn calculate_rewards(
                 let active_days = manifest.active_days + 1;
 
                 // The calculation of the storage rewards
+                // SBP-M1 review: replace 1 as f64 with 1f64
                 rewards.daily_storage_rewards += (1 as f64
                     / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
                     * DAILY_TOKENS_STORAGE
@@ -590,6 +608,7 @@ pub async fn calculate_rewards(
 async fn validate_current_manifests(
     input: VerifyManifestsInput,
 ) -> Result<VerifyManifestsOutput, RequestError> {
+    // SBP-M1 review: unnecessary qualification
     let result: Result<fula::VerifyManifestsOutput, _> = req("fula/manifest/verify", input).await;
     return result;
 }
@@ -597,6 +616,7 @@ async fn validate_current_manifests(
 async fn generate_challenge(
     input: GenerateChallengeInput,
 ) -> Result<GenerateChallengeOutput, RequestError> {
+    // SBP-M1 review: unnecessary qualification
     let result: Result<challenge::GenerateChallengeOutput, _> =
         req("fula/challenge/generate", input).await;
     return result;
