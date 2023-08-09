@@ -12,8 +12,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rand = "0.8.4"
 anyhow = "1.0"
+dotenv = "0.15.0"
 
-bevy = { version = "0.7", default-features = false }
+bevy = { version = "0.7.0", default-features = false }
 bevy-inspector-egui = "0.10"
 simula_core = { git = "https://github.com/Simbotic/simula.git", rev = "c907cd248b89e75a57cbfe880a976ccee45efe45" }
 simula_camera = { git = "https://github.com/Simbotic/simula.git", rev = "c907cd248b89e75a57cbfe880a976ccee45efe45" }
@@ -30,7 +31,7 @@ crossbeam = "0.8"
 ipfs-api-backend-hyper = { version = "0.5.0" }
 
 reqwest = { version = "0.11", features = ["json"] }
-sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "3109c3d40f963a62c410fd026f58207a44fa15bc" }
+sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "c46b8e6460f83f4ab1164871b3466838850006a9" }
 
 pcd-rs = "0.8.0"
 bytes = "1.1"

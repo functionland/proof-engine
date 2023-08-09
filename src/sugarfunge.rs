@@ -1,26 +1,14 @@
-use crate::{common::TokioRuntime, ipfs::ProofEngine, opts::Opt};
+use crate::{common::TokioRuntime, config, ipfs::ProofEngine, opts::Opt};
 use bevy::prelude::*;
 use crossbeam::channel;
+use dotenv::dotenv;
 use ipfs_api::IpfsApi;
 use ipfs_api_backend_hyper as ipfs_api;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-//use std::collections::hash_map::DefaultHasher;
-//use std::hash::{Hash, Hasher};
 use std::time;
 use structopt::StructOpt;
 use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, *};
-
-const YEARLY_TOKENS: u64 = 48000000;
-
-const DAILY_TOKENS_MINING: f64 = YEARLY_TOKENS as f64 * 0.70 / (12 * 30) as f64;
-const DAILY_TOKENS_STORAGE: f64 = YEARLY_TOKENS as f64 * 0.20 / (12 * 30) as f64;
-
-const NUMBER_CYCLES_TO_ADVANCE: u16 = 3;
-// const NUMBER_CYCLES_TO_RESET: u16 = 4;
-
-const HOUR_TO_MILISECONDS: u64 = 500; // Should be 3600000 seconds in a day
-const YEAR_TO_HOURS: i64 = 360; // Should be 8640 hours in a year
 
 #[derive(Deref)]
 pub struct Sender<T>(pub channel::Sender<T>);
@@ -46,9 +34,10 @@ pub struct Rewards {
     pub daily_mining_rewards: f64,
     pub daily_storage_rewards: f64,
 }
-
 fn endpoint(cmd: &'static str) -> String {
-    format!("http://127.0.0.1:4000/{}", cmd)
+    dotenv().ok();
+    let env = config::init();
+    format!("{}/{}", env.fula_sugarfunge_api_host.as_str(), cmd)
 }
 
 async fn req<'a, I, O>(cmd: &'static str, args: I) -> Result<O, RequestError>
@@ -88,12 +77,6 @@ where
         }),
     }
 }
-
-// fn calculate_hash<T: Hash>(t: &T) -> u64 {
-//     let mut s = DefaultHasher::new();
-//     t.hash(&mut s);
-//     s.finish()
-// }
 
 async fn get_manifests(
     pool_id: Option<PoolId>,
@@ -347,8 +330,10 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: 
 }
 
 pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRuntime>) {
-    let rt = tokio_runtime.runtime.clone();
+    dotenv().ok();
+    let env = config::init();
 
+    let rt = tokio_runtime.runtime.clone();
     let sugar_rx: channel::Receiver<ProofEngine> = sugar_rx.clone();
 
     std::thread::spawn(move || {
@@ -356,11 +341,13 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
         rt.block_on(async move {
             let proof = sugar_rx.recv().unwrap();
             let cmd_opts = Opt::from_args();
-            let class_id_labor = *cmd_opts.class_id;
-            let asset_id_labor= *cmd_opts.asset_id;
+            let class_id_labor = ClassId::from(env.labor_token_class_id);
+            let asset_id_labor = AssetId::from(env.labor_token_class_id);
+            let class_id_challenge = ClassId::from(env.challenge_token_class_id);
+            let asset_id_challenge = AssetId::from(env.challenge_token_asset_id);
             // let class_id_challenge = ClassId:: + 1;
             let ipfs_seed = format!("//fula/dev/2/{}", &proof.peer_id);
-            
+
             //let asset_id = calculate_hash(&ipfs_seed);
             //let asset_id = AssetId::from(asset_id);
 
@@ -408,17 +395,22 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             verify_asset_info(class_id_labor, asset_id_labor, operator.seed.clone()).await;
 
             verify_class_info(
-                ClassId::from(u64::from(class_id_labor) + 10),
+                class_id_challenge,
                 operator.seed.clone(),
                 operator.account.clone(),
             )
             .await;
 
-            verify_asset_info(ClassId::from(u64::from(class_id_labor) + 10), asset_id_labor, operator.seed.clone()).await;
+            verify_asset_info(
+                class_id_challenge,
+                asset_id_challenge,
+                operator.seed.clone(),
+            )
+            .await;
 
             //Executing the Calculation, Mint and Update of rewards
 
-            for cycle in 1..YEAR_TO_HOURS {
+            for cycle in 1..env.year_to_hours {
                 let mut daily_rewards = 0.0;
 
                 // Get the current pool_id of the user
@@ -470,8 +462,8 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                                     seed: seeded.seed.clone(),
                                     pool_id: pool_id,
                                     cids: get_vec_cid_from_manifest_storer_data(value.manifests),
-                                    class_id: ClassId::from(u64::from(class_id_labor) + 10),
-                                    asset_id: asset_id_labor,
+                                    class_id: class_id_challenge,
+                                    asset_id: asset_id_challenge,
                                 })
                                 .await;
                             }
@@ -483,7 +475,8 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 if let Ok(generated_challenge) = generate_challenge(GenerateChallengeInput {
                     seed: seeded.seed.clone(),
                 })
-                .await {
+                .await
+                {
                     info!("STEP 2: GENERATED CHALLENGE {:#?}", generated_challenge);
                 } else {
                     info!("STEP 2: NO ACCOUNTS TO CHALLENGE");
@@ -526,11 +519,11 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 }
                 println!(
                     "DAY: {} CYCLE: {} REWARDS: {}",
-                    cycle / NUMBER_CYCLES_TO_ADVANCE as i64,
+                    cycle / env.number_cycles_to_advance as u64,
                     cycle,
                     daily_rewards
                 );
-                tokio::time::sleep(time::Duration::from_millis(HOUR_TO_MILISECONDS)).await;
+                tokio::time::sleep(time::Duration::from_millis(env.hour_to_miliseconds)).await;
             }
         });
     });
@@ -558,6 +551,12 @@ pub async fn calculate_rewards(
     manifests: &GetAllManifestsStorerDataOutput,
     network_size: f64,
 ) -> Rewards {
+    dotenv().ok();
+    let env = config::init();
+
+    let daily_tokens_mining: f64 = env.yearly_tokens as f64 * 0.70 / (12 * 30) as f64;
+    let daily_tokens_storage: f64 = env.yearly_tokens as f64 * 0.20 / (12 * 30) as f64;
+
     let mut rewards = Rewards {
         daily_mining_rewards: 0.0,
         daily_storage_rewards: 0.0,
@@ -579,17 +578,17 @@ pub async fn calculate_rewards(
                 file_participation = file_check.size as f64 / network_size;
             }
             // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
-            if manifest.active_cycles >= NUMBER_CYCLES_TO_ADVANCE {
+            if manifest.active_cycles >= env.number_cycles_to_advance {
                 let active_days = manifest.active_days + 1;
 
                 // The calculation of the storage rewards
                 rewards.daily_storage_rewards += (1 as f64
                     / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
-                    * DAILY_TOKENS_STORAGE
+                    * daily_tokens_storage
                     * file_participation;
 
                 // The calculation of the mining rewards
-                rewards.daily_mining_rewards += DAILY_TOKENS_MINING as f64 * file_participation;
+                rewards.daily_mining_rewards += daily_tokens_mining as f64 * file_participation;
             }
         }
     }
