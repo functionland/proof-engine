@@ -7,6 +7,7 @@ use simula_core::{
 };
 
 mod common;
+mod config;
 mod ipfs;
 mod manifest;
 mod opts;
