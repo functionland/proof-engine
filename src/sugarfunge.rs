@@ -1,4 +1,4 @@
-use crate::{common::TokioRuntime, config, ipfs::ProofEngine, opts::Opt};
+use crate::{common::TokioRuntime, config, opts::Opt};
 use bevy::prelude::*;
 use crossbeam::channel;
 use dotenv::dotenv;
@@ -263,27 +263,13 @@ async fn verify_account_exist(seeded_account: Account) -> bool {
     return account_exists.exists;
 }
 
-async fn register_account(seeded_account: Account, operator_seed: Seed) {
+async fn register_account(seeded_account: Account) {
     if !verify_account_exist(seeded_account.clone()).await {
-        let fund: account::FundAccountOutput = req(
-            "account/fund",
-            account::FundAccountInput {
-                seed: operator_seed.clone(),
-                to: seeded_account.clone(),
-                amount: Balance::from(1000000000000000000),
-            },
-        )
-        .await
-        .unwrap();
-        if u128::from(fund.amount) > 0 {
-            info!("CREATION: registered: {:?}", seeded_account);
-        } else {
-            error!("ERROR: could not register account");
-        }
+        error!("ERROR: Account is not created or funded");
     }
 }
 
-async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_account: Account) {
+async fn verify_class_info(class_id: ClassId, seeded_seed: Seed, seeded_account: Account) {
     let class_info: asset::ClassInfoOutput =
         req("asset/class_info", asset::ClassInfoInput { class_id })
             .await
@@ -294,8 +280,8 @@ async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_acco
         let create_class: asset::CreateClassOutput = req(
             "asset/create_class",
             asset::CreateClassInput {
-                seed: operator_seed.clone(),
-                owner: operator_account.clone(),
+                seed: seeded_seed.clone(),
+                owner: seeded_account.clone(),
                 class_id,
                 metadata: json!({"fula":{"desc": "Proof engine token"}}),
             },
@@ -306,7 +292,7 @@ async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_acco
     }
 }
 
-async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: Seed) {
+async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Seed) {
     let asset_info: asset::AssetInfoOutput =
         req("asset/info", asset::AssetInfoInput { class_id, asset_id })
             .await
@@ -317,7 +303,7 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: 
         let create_asset: asset::CreateOutput = req(
             "asset/create",
             asset::CreateInput {
-                seed: operator_seed.clone(),
+                seed: seeded_seed.clone(),
                 class_id,
                 asset_id,
                 metadata: json!({"ipfs":{"root_hash": "0"}}),
@@ -329,27 +315,20 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: 
     }
 }
 
-pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRuntime>) {
+pub fn launch(tokio_runtime: Res<TokioRuntime>) {
     dotenv().ok();
     let env = config::init();
 
     let rt = tokio_runtime.runtime.clone();
-    let sugar_rx: channel::Receiver<ProofEngine> = sugar_rx.clone();
 
     std::thread::spawn(move || {
         // Spawn the root task
         rt.block_on(async move {
-            let proof = sugar_rx.recv().unwrap();
             let cmd_opts = Opt::from_args();
             let class_id_labor = ClassId::from(env.labor_token_class_id);
             let asset_id_labor = AssetId::from(env.labor_token_class_id);
             let class_id_challenge = ClassId::from(env.challenge_token_class_id);
             let asset_id_challenge = AssetId::from(env.challenge_token_asset_id);
-            // let class_id_challenge = ClassId:: + 1;
-            let ipfs_seed = format!("//fula/dev/2/{}", &proof.peer_id);
-
-            //let asset_id = calculate_hash(&ipfs_seed);
-            //let asset_id = AssetId::from(asset_id);
 
             info!(
                 "VERIFICATION: ClassId {:?}, AssetId {:?}",
@@ -373,40 +352,26 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 };
             }
 
-            //Verifying the existence of the account, the operator, class_id and asset_id
+            //Verifying the existence of the account, class_id and asset_id
 
-            let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
+            let seeded = verify_account_seeded(cmd_opts.operator.clone()).await;
             info!("VERIFICATION: User Seed {:?}", seeded.seed);
             info!("VERIFICATION: User Account {:?}", seeded.account);
 
-            let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
-            info!("VERIFICATION: Operator Seed: {:?}", operator.seed);
-            info!("VERIFICATION: Operator Account: {:?}", operator.account);
+            register_account(seeded.account.clone()).await;
 
-            register_account(seeded.account.clone(), operator.seed.clone()).await;
+            verify_class_info(class_id_labor, seeded.seed.clone(), seeded.account.clone()).await;
 
-            verify_class_info(
-                class_id_labor,
-                operator.seed.clone(),
-                operator.account.clone(),
-            )
-            .await;
-
-            verify_asset_info(class_id_labor, asset_id_labor, operator.seed.clone()).await;
+            verify_asset_info(class_id_labor, asset_id_labor, seeded.seed.clone()).await;
 
             verify_class_info(
                 class_id_challenge,
-                operator.seed.clone(),
-                operator.account.clone(),
+                seeded.seed.clone(),
+                seeded.account.clone(),
             )
             .await;
 
-            verify_asset_info(
-                class_id_challenge,
-                asset_id_challenge,
-                operator.seed.clone(),
-            )
-            .await;
+            verify_asset_info(class_id_challenge, asset_id_challenge, seeded.seed.clone()).await;
 
             //Executing the Calculation, Mint and Update of rewards
 
