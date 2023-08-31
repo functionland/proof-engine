@@ -1418,6 +1418,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
 
 [[package]]
+name = "contract-api-types"
+version = "0.1.0"
+source = "git+https://github.com/functionland/fula-contract-api.git?rev=d4c2ac2687efad3201f02fccea91b9ac27d9c53f#d4c2ac2687efad3201f02fccea91b9ac27d9c53f"
+dependencies = [
+ "bevy_derive 0.11.0",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sp-core",
+ "sp-runtime",
+ "subxt",
+]
+
+[[package]]
 name = "copyless"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4620,6 +4635,7 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bytes",
+ "contract-api-types",
  "crossbeam",
  "dotenv",
  "futures",

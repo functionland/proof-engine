@@ -1,5 +1,6 @@
-use crate::{common::TokioRuntime, config, ipfs::ProofEngine, opts::Opt};
+use crate::{common::TokioRuntime, config, opts::Opt};
 use bevy::prelude::*;
+use contract_api_types::types::Config;
 use crossbeam::channel;
 use dotenv::dotenv;
 use ipfs_api::IpfsApi;
@@ -34,19 +35,17 @@ pub struct Rewards {
     pub daily_mining_rewards: f64,
     pub daily_storage_rewards: f64,
 }
-fn endpoint(cmd: &'static str) -> String {
-    dotenv().ok();
-    let env = config::init();
-    format!("{}/{}", env.fula_sugarfunge_api_host.as_str(), cmd)
+fn endpoint(host: String, cmd: &'static str) -> String {
+    format!("{}/{}", host.as_str(), cmd)
 }
 
-async fn req<'a, I, O>(cmd: &'static str, args: I) -> Result<O, RequestError>
+async fn req<'a, I, O>(host: String, cmd: &'static str, args: I) -> Result<O, RequestError>
 where
     I: Serialize,
     O: for<'de> Deserialize<'de>,
 {
     let sf_res = reqwest::Client::new()
-        .post(endpoint(cmd))
+        .post(endpoint(host, cmd))
         .json(&args)
         .send()
         .await;
@@ -78,12 +77,32 @@ where
     }
 }
 
+async fn fula_sugarfunge_req<'a, I, O>(cmd: &'static str, args: I) -> Result<O, RequestError>
+where
+    I: Serialize,
+    O: for<'de> Deserialize<'de>,
+{
+    dotenv().ok();
+    let env = config::init();
+    req(env.fula_sugarfunge_api_host, cmd, args).await
+}
+
+async fn fula_contract_req<'a, I, O>(cmd: &'static str, args: I) -> Result<O, RequestError>
+where
+    I: Serialize,
+    O: for<'de> Deserialize<'de>,
+{
+    dotenv().ok();
+    let env = config::init();
+    req(env.fula_contract_api_host, cmd, args).await
+}
+
 async fn get_manifests(
     pool_id: Option<PoolId>,
     uploader: Option<Account>,
     storage: Option<Account>,
 ) -> Result<GetAllManifestsOutput, RequestError> {
-    let manifests: Result<fula::GetAllManifestsOutput, _> = req(
+    let manifests: Result<fula::GetAllManifestsOutput, _> = fula_sugarfunge_req(
         "fula/manifest",
         fula::GetAllManifestsInput {
             uploader,
@@ -99,7 +118,7 @@ async fn get_manifests_storage_data(
     pool_id: Option<PoolId>,
     storer: Option<Account>,
 ) -> Result<GetAllManifestsStorerDataOutput, RequestError> {
-    let manifests: Result<fula::GetAllManifestsStorerDataOutput, _> = req(
+    let manifests: Result<fula::GetAllManifestsStorerDataOutput, _> = fula_sugarfunge_req(
         "fula/manifest/storer_data",
         fula::GetAllManifestsStorerDataInput { pool_id, storer },
     )
@@ -108,7 +127,7 @@ async fn get_manifests_storage_data(
 }
 
 async fn get_account_pool_id(account: Account) -> Option<PoolId> {
-    let user: Result<pool::GetAllPoolUsersOutput, _> = req(
+    let user: Result<pool::GetAllPoolUsersOutput, _> = fula_sugarfunge_req(
         "fula/pool/users",
         pool::GetAllPoolUsersInput {
             account: Some(account),
@@ -244,14 +263,14 @@ pub async fn get_blocks_proof(peer_id: String) -> u64 {
 
 async fn verify_account_seeded(seed: Seed) -> account::SeededAccountOutput {
     let seeded: account::SeededAccountOutput =
-        req("account/seeded", account::SeededAccountInput { seed })
+        fula_sugarfunge_req("account/seeded", account::SeededAccountInput { seed })
             .await
             .unwrap();
     return seeded;
 }
 
 async fn verify_account_exist(seeded_account: Account) -> bool {
-    let account_exists: account::AccountExistsOutput = req(
+    let account_exists: account::AccountExistsOutput = fula_sugarfunge_req(
         "account/exists",
         account::AccountExistsInput {
             account: seeded_account.clone(),
@@ -263,39 +282,25 @@ async fn verify_account_exist(seeded_account: Account) -> bool {
     return account_exists.exists;
 }
 
-async fn register_account(seeded_account: Account, operator_seed: Seed) {
+async fn register_account(seeded_account: Account) {
     if !verify_account_exist(seeded_account.clone()).await {
-        let fund: account::FundAccountOutput = req(
-            "account/fund",
-            account::FundAccountInput {
-                seed: operator_seed.clone(),
-                to: seeded_account.clone(),
-                amount: Balance::from(1000000000000000000),
-            },
-        )
-        .await
-        .unwrap();
-        if u128::from(fund.amount) > 0 {
-            info!("CREATION: registered: {:?}", seeded_account);
-        } else {
-            error!("ERROR: could not register account");
-        }
+        error!("ERROR: Account is not created or funded");
     }
 }
 
-async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_account: Account) {
+async fn verify_class_info(class_id: ClassId, seeded_seed: Seed, seeded_account: Account) {
     let class_info: asset::ClassInfoOutput =
-        req("asset/class_info", asset::ClassInfoInput { class_id })
+        fula_sugarfunge_req("asset/class_info", asset::ClassInfoInput { class_id })
             .await
             .unwrap();
 
     if class_info.info.is_none() {
         info!("CREATION: creating: {:?}", class_id);
-        let create_class: asset::CreateClassOutput = req(
+        let create_class: asset::CreateClassOutput = fula_sugarfunge_req(
             "asset/create_class",
             asset::CreateClassInput {
-                seed: operator_seed.clone(),
-                owner: operator_account.clone(),
+                seed: seeded_seed.clone(),
+                owner: seeded_account.clone(),
                 class_id,
                 metadata: json!({"fula":{"desc": "Proof engine token"}}),
             },
@@ -306,18 +311,18 @@ async fn verify_class_info(class_id: ClassId, operator_seed: Seed, operator_acco
     }
 }
 
-async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: Seed) {
+async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Seed) {
     let asset_info: asset::AssetInfoOutput =
-        req("asset/info", asset::AssetInfoInput { class_id, asset_id })
+        fula_sugarfunge_req("asset/info", asset::AssetInfoInput { class_id, asset_id })
             .await
             .unwrap();
 
     if asset_info.info.is_none() {
         info!("CREATION: creating: {:?} {:?}", class_id, asset_id);
-        let create_asset: asset::CreateOutput = req(
+        let create_asset: asset::CreateOutput = fula_sugarfunge_req(
             "asset/create",
             asset::CreateInput {
-                seed: operator_seed.clone(),
+                seed: seeded_seed.clone(),
                 class_id,
                 asset_id,
                 metadata: json!({"ipfs":{"root_hash": "0"}}),
@@ -329,27 +334,20 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, operator_seed: 
     }
 }
 
-pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRuntime>) {
-    dotenv().ok();
-    let env = config::init();
-
+pub fn launch(tokio_runtime: Res<TokioRuntime>) {
     let rt = tokio_runtime.runtime.clone();
-    let sugar_rx: channel::Receiver<ProofEngine> = sugar_rx.clone();
 
     std::thread::spawn(move || {
         // Spawn the root task
         rt.block_on(async move {
-            let proof = sugar_rx.recv().unwrap();
             let cmd_opts = Opt::from_args();
-            let class_id_labor = ClassId::from(env.labor_token_class_id);
-            let asset_id_labor = AssetId::from(env.labor_token_class_id);
-            let class_id_challenge = ClassId::from(env.challenge_token_class_id);
-            let asset_id_challenge = AssetId::from(env.challenge_token_asset_id);
-            // let class_id_challenge = ClassId:: + 1;
-            let ipfs_seed = format!("//fula/dev/2/{}", &proof.peer_id);
 
-            //let asset_id = calculate_hash(&ipfs_seed);
-            //let asset_id = AssetId::from(asset_id);
+            let var: Result<Config, RequestError> = fula_contract_req("setup", ()).await;
+            if let Ok (config) = var {
+            let class_id_labor = ClassId::from(config.labor_token_class_id);
+            let asset_id_labor = AssetId::from(config.labor_token_class_id);
+            let class_id_challenge = ClassId::from(config.challenge_token_class_id);
+            let asset_id_challenge = AssetId::from(config.challenge_token_asset_id);
 
             info!(
                 "VERIFICATION: ClassId {:?}, AssetId {:?}",
@@ -359,7 +357,8 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
             //Health Request Loop
 
             loop {
-                let health_request: Result<Health, RequestError> = req("health", ()).await;
+                let health_request: Result<Health, RequestError> =
+                    fula_sugarfunge_req("health", ()).await;
 
                 match health_request {
                     Ok(health) => {
@@ -373,44 +372,30 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 };
             }
 
-            //Verifying the existence of the account, the operator, class_id and asset_id
+            //Verifying the existence of the account, class_id and asset_id
 
-            let seeded = verify_account_seeded(Seed::from(ipfs_seed)).await;
+            let seeded = verify_account_seeded(cmd_opts.operator.clone()).await;
             info!("VERIFICATION: User Seed {:?}", seeded.seed);
             info!("VERIFICATION: User Account {:?}", seeded.account);
 
-            let operator = verify_account_seeded(cmd_opts.operator.clone()).await;
-            info!("VERIFICATION: Operator Seed: {:?}", operator.seed);
-            info!("VERIFICATION: Operator Account: {:?}", operator.account);
+            register_account(seeded.account.clone()).await;
 
-            register_account(seeded.account.clone(), operator.seed.clone()).await;
+            verify_class_info(class_id_labor, seeded.seed.clone(), seeded.account.clone()).await;
 
-            verify_class_info(
-                class_id_labor,
-                operator.seed.clone(),
-                operator.account.clone(),
-            )
-            .await;
-
-            verify_asset_info(class_id_labor, asset_id_labor, operator.seed.clone()).await;
+            verify_asset_info(class_id_labor, asset_id_labor, seeded.seed.clone()).await;
 
             verify_class_info(
                 class_id_challenge,
-                operator.seed.clone(),
-                operator.account.clone(),
+                seeded.seed.clone(),
+                seeded.account.clone(),
             )
             .await;
 
-            verify_asset_info(
-                class_id_challenge,
-                asset_id_challenge,
-                operator.seed.clone(),
-            )
-            .await;
+            verify_asset_info(class_id_challenge, asset_id_challenge, seeded.seed.clone()).await;
 
             //Executing the Calculation, Mint and Update of rewards
 
-            for cycle in 1..env.year_to_hours {
+            for cycle in 1..config.total_cyles {
                 let mut daily_rewards = 0.0;
 
                 // Get the current pool_id of the user
@@ -493,7 +478,7 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                         let network_size = get_cumulative_size(&current_all_manifests).await as f64;
 
                         // Calculate the labor tokens corresponded for the user
-                        let rewards = calculate_daily_rewards(network_size, &seeded).await;
+                        let rewards = calculate_daily_rewards(config.clone(), network_size, &seeded).await;
 
                         info!("STEP 3: CALCULATE REWARDS:");
                         info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
@@ -519,17 +504,22 @@ pub fn launch(sugar_rx: Res<Receiver<ProofEngine>>, tokio_runtime: Res<TokioRunt
                 }
                 println!(
                     "DAY: {} CYCLE: {} REWARDS: {}",
-                    cycle / env.number_cycles_to_advance as u64,
+                    cycle / config.cycles_advance as u64,
                     cycle,
                     daily_rewards
                 );
-                tokio::time::sleep(time::Duration::from_millis(env.hour_to_miliseconds)).await;
+                tokio::time::sleep(time::Duration::from_millis(config.time_between_cycles_miliseconds)).await;
             }
+        }
         });
     });
 }
 
-async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput) -> Rewards {
+async fn calculate_daily_rewards(
+    config: Config,
+    network_size: f64,
+    seeded: &SeededAccountOutput,
+) -> Rewards {
     let mut rewards = Rewards {
         daily_mining_rewards: 0.0,
         daily_storage_rewards: 0.0,
@@ -539,7 +529,7 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
     if let Ok(storer_manifest_data) =
         get_manifests_storage_data(pool_id, Some(seeded.account.clone())).await
     {
-        rewards = calculate_rewards(&storer_manifest_data, network_size).await;
+        rewards = calculate_rewards(config, &storer_manifest_data, network_size).await;
 
         return rewards;
     } else {
@@ -548,14 +538,12 @@ async fn calculate_daily_rewards(network_size: f64, seeded: &SeededAccountOutput
 }
 
 pub async fn calculate_rewards(
+    config: Config,
     manifests: &GetAllManifestsStorerDataOutput,
     network_size: f64,
 ) -> Rewards {
-    dotenv().ok();
-    let env = config::init();
-
-    let daily_tokens_mining: f64 = env.yearly_tokens as f64 * 0.70 / (12 * 30) as f64;
-    let daily_tokens_storage: f64 = env.yearly_tokens as f64 * 0.20 / (12 * 30) as f64;
+    let daily_tokens_mining: f64 = config.yearly_tokens as f64 * 0.70 / (12 * 30) as f64;
+    let daily_tokens_storage: f64 = config.yearly_tokens as f64 * 0.20 / (12 * 30) as f64;
 
     let mut rewards = Rewards {
         daily_mining_rewards: 0.0,
@@ -578,7 +566,7 @@ pub async fn calculate_rewards(
                 file_participation = file_check.size as f64 / network_size;
             }
             // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
-            if manifest.active_cycles >= env.number_cycles_to_advance {
+            if manifest.active_cycles >= config.cycles_advance {
                 let active_days = manifest.active_days + 1;
 
                 // The calculation of the storage rewards
@@ -598,7 +586,8 @@ pub async fn calculate_rewards(
 async fn validate_current_manifests(
     input: VerifyManifestsInput,
 ) -> Result<VerifyManifestsOutput, RequestError> {
-    let result: Result<fula::VerifyManifestsOutput, _> = req("fula/manifest/verify", input).await;
+    let result: Result<fula::VerifyManifestsOutput, _> =
+        fula_sugarfunge_req("fula/manifest/verify", input).await;
     return result;
 }
 
@@ -606,7 +595,7 @@ async fn generate_challenge(
     input: GenerateChallengeInput,
 ) -> Result<GenerateChallengeOutput, RequestError> {
     let result: Result<challenge::GenerateChallengeOutput, _> =
-        req("fula/challenge/generate", input).await;
+        fula_sugarfunge_req("fula/challenge/generate", input).await;
     return result;
 }
 
@@ -614,7 +603,7 @@ async fn verify_pending_challenge(
     input: VerifyPendingChallengeInput,
 ) -> Result<VerifyPendingChallengeOutput, RequestError> {
     let result: Result<challenge::VerifyPendingChallengeOutput, _> =
-        req("fula/challenge/pending", input).await;
+        fula_sugarfunge_req("fula/challenge/pending", input).await;
     return result;
 }
 
@@ -622,7 +611,7 @@ async fn verify_challenge(
     input: VerifyChallengeInput,
 ) -> Result<GenerateChallengeOutput, RequestError> {
     let result: Result<challenge::GenerateChallengeOutput, _> =
-        req("fula/challenge/verify", input).await;
+        fula_sugarfunge_req("fula/challenge/verify", input).await;
     return result;
 }
 
@@ -630,20 +619,22 @@ async fn mint_labor_tokens(
     input: MintLaborTokensInput,
 ) -> Result<MintLaborTokensOutput, RequestError> {
     let result: Result<challenge::MintLaborTokensOutput, _> =
-        req("fula/mint_labor_tokens", input).await;
+        fula_sugarfunge_req("fula/mint_labor_tokens", input).await;
     return result;
 }
 
 async fn verify_file_size(
     input: VerifyFileSizeInput,
 ) -> Result<VerifyFileSizeOutput, RequestError> {
-    let result: Result<challenge::VerifyFileSizeOutput, _> = req("fula/file/verify", input).await;
+    let result: Result<challenge::VerifyFileSizeOutput, _> =
+        fula_sugarfunge_req("fula/file/verify", input).await;
     return result;
 }
 
 async fn provide_file_size(
     input: ProvideFileSizeInput,
 ) -> Result<ProvideFileSizeOutput, RequestError> {
-    let result: Result<challenge::ProvideFileSizeOutput, _> = req("fula/file/provide", input).await;
+    let result: Result<challenge::ProvideFileSizeOutput, _> =
+        fula_sugarfunge_req("fula/file/provide", input).await;
     return result;
 }
