@@ -3,3 +3,4 @@
 /ipfs
 /rocksdb
 /.env
+.history/*
