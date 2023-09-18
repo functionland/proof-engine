@@ -16,6 +16,8 @@ jobs:
           with:
             username: ${{ secrets.DOCKERHUB_USERNAME }}
             password: ${{ secrets.DOCKERHUB_ORG_TOKEN }}
+        - name: Clear Docker Cache
+          run: docker builder prune --all
         - name: Build and push
           uses: docker/build-push-action@v3
           with:
@@ -34,6 +36,8 @@ jobs:
           with:
             username: ${{ secrets.DOCKERHUB_USERNAME }}
             password: ${{ secrets.DOCKERHUB_ORG_TOKEN }}
+        - name: Clear Docker Cache
+          run: docker builder prune --all
         - name: Build and push
           uses: docker/build-push-action@v3
           with:
