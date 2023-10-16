@@ -1420,16 +1420,10 @@ checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
 [[package]]
 name = "contract-api-types"
 version = "0.1.0"
-source = "git+https://github.com/functionland/fula-contract-api.git?rev=d4c2ac2687efad3201f02fccea91b9ac27d9c53f#d4c2ac2687efad3201f02fccea91b9ac27d9c53f"
+source = "git+https://github.com/functionland/fula-contract-api.git?rev=49d8302709d6321f93ef834eaf7d473a47fc0d46#49d8302709d6321f93ef834eaf7d473a47fc0d46"
 dependencies = [
- "bevy_derive 0.11.0",
- "parity-scale-codec",
- "scale-info",
  "serde",
  "serde_json",
- "sp-core",
- "sp-runtime",
- "subxt",
 ]
 
 [[package]]
@@ -6117,7 +6111,7 @@ dependencies = [
 [[package]]
 name = "sugarfunge-api-types"
 version = "0.1.0"
-source = "git+https://github.com/functionland/sugarfunge-api.git?rev=c46b8e6460f83f4ab1164871b3466838850006a9#c46b8e6460f83f4ab1164871b3466838850006a9"
+source = "git+https://github.com/functionland/sugarfunge-api.git?rev=5ba1b53128bc902822c4fb37cbc655520ff33ec9#5ba1b53128bc902822c4fb37cbc655520ff33ec9"
 dependencies = [
  "bevy_derive 0.11.0",
  "parity-scale-codec",
