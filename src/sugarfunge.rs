@@ -1,6 +1,6 @@
 use crate::{common::TokioRuntime, config, opts::Opt};
 use bevy::prelude::*;
-use contract_api_types::types::Config;
+use contract_api_types::types::{Config,Refund};
 use crossbeam::channel;
 use dotenv::dotenv;
 use ipfs_api::IpfsApi;
@@ -334,6 +334,24 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Se
     }
 }
 
+async fn fund_account(seeded_account: Account) {
+    let data: Result<Refund, RequestError> = fula_contract_req("refund", ()).await;
+    if let Ok(value) = data {
+        let fund:  Result<account::FundAccountOutput, RequestError> = fula_sugarfunge_req(
+        "account/fund",
+        account::FundAccountInput {
+            seed:Seed::from(value.seed),
+            to: seeded_account,
+            amount:Balance::from(value.amount), 
+        },
+    )
+    .await; 
+    if let Ok(response) = fund {
+        info!("CREATION: Account funded: {:#?}", response);
+    }
+    }
+}
+
 pub fn launch(tokio_runtime: Res<TokioRuntime>) {
     let rt = tokio_runtime.runtime.clone();
 
@@ -378,6 +396,8 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
             info!("VERIFICATION: User Seed {:?}", seeded.seed);
             info!("VERIFICATION: User Account {:?}", seeded.account);
 
+            fund_account(seeded.account.clone()).await;
+            
             register_account(seeded.account.clone()).await;
 
             verify_class_info(class_id_labor, seeded.seed.clone(), seeded.account.clone()).await;
