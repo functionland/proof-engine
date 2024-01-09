@@ -26,7 +26,9 @@ pub struct RequestError {
 #[serde(rename_all = "camelCase")]
 pub struct Health {
     pub peers: usize,
+    #[serde(rename = "is_syncing")]
     pub is_syncing: bool,
+    #[serde(rename = "should_have_peers")]
     pub should_have_peers: bool,
 }
 
