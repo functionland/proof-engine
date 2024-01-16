@@ -7,26 +7,32 @@ use structopt::StructOpt;
 pub struct Opt {
     /// SugarFunge operator
     #[structopt(parse(from_os_str))]
-    pub operator: OptOperator,
+    pub seed: SeedOperator,
+
+    #[structopt(parse(from_os_str))]
+    pub aura: AccountOperator,
+
+    #[structopt(parse(from_os_str))]
+    pub grandpa: AccountOperator,
 }
 
 #[derive(Debug, Deref)]
-pub struct OptIpfsPeer(String);
+pub struct AccountOperator(String);
 
-impl From<&OsStr> for OptIpfsPeer {
+impl From<&OsStr> for AccountOperator {
     fn from(os_str: &OsStr) -> Self {
         let os_str = os_str.to_str().unwrap();
-        OptIpfsPeer(os_str.to_string())
+        AccountOperator(os_str.to_string())
     }
 }
 
 #[derive(Debug, Deref)]
-pub struct OptOperator(pub sugarfunge_api_types::primitives::Seed);
+pub struct SeedOperator(pub sugarfunge_api_types::primitives::Seed);
 
-impl From<&OsStr> for OptOperator {
+impl From<&OsStr> for SeedOperator {
     fn from(os_str: &OsStr) -> Self {
         let os_str = os_str.to_str().unwrap();
         let seed = sugarfunge_api_types::primitives::Seed::from(os_str.to_string());
-        OptOperator(seed)
+        SeedOperator(seed)
     }
 }
