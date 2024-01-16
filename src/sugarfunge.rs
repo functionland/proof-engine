@@ -25,9 +25,11 @@ pub struct RequestError {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Health {
-    is_syncing: bool,
-    peers: u64,
-    should_have_peers: bool,
+    pub peers: usize,
+    #[serde(rename = "is_syncing")]
+    pub is_syncing: bool,
+    #[serde(rename = "should_have_peers")]
+    pub should_have_peers: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
