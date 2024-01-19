@@ -32,6 +32,6 @@ ipfs-api-backend-hyper = { version = "0.5.0" }
 
 reqwest = { version = "0.11", features = ["json"] }
 sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "1bbc8b26656d5297a6fc799e473f502e7bb6c99e" }
-contract-api-types = {git = "https://github.com/functionland/fula-contract-api.git", rev = "3d295815686d58eb2672f19614842f5c1d0fa1d0"}
+contract-api-types = {git = "https://github.com/functionland/fula-contract-api.git", rev = "00c23786bdaf0c60ec601d8b1207c52fa49d7947"}
 pcd-rs = "0.8.0"
 bytes = "1.1"
