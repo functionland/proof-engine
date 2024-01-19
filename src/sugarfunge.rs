@@ -1,6 +1,6 @@
 use crate::{common::TokioRuntime, config, opts::Opt};
 use bevy::prelude::*;
-use contract_api_types::{config::Config, calls::{RefundInput, RefundOutput, ConvertToValidatorInput, ConvertToValidatorOutput}};
+use contract_api_types::{config::Config, calls::{ConvertToValidatorInput, ConvertToValidatorOutput}};
 use crossbeam::channel;
 use dotenv::dotenv;
 use ipfs_api::IpfsApi;
@@ -336,13 +336,6 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Se
     }
 }
 
-async fn fund_account(seeded_account: Account) {
-    let data = refund(RefundInput{account: seeded_account.to_string()}).await;
-    if let Ok(response) = data {
-        info!("CREATION: Account funded: {:#?}", response);
-    }
-}
-
 pub fn launch(tokio_runtime: Res<TokioRuntime>) {
     let rt = tokio_runtime.runtime.clone();
 
@@ -386,11 +379,8 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                 info!("VERIFICATION: User Seed {:?}", seeded.seed);
                 info!("VERIFICATION: User Account {:?}", seeded.account);
 
-                fund_account(seeded.account.clone()).await;
-                
-                register_account(seeded.account.clone()).await;
-
                 if let Ok(_) = convert_to_validator(ConvertToValidatorInput { seed: seeded.seed.to_string(), aura_account: cmd_opts.aura.to_string(), grandpa_account: cmd_opts.grandpa.to_string() }).await{
+                    register_account(seeded.account.clone()).await;
                     verify_class_info(class_id_labor, seeded.seed.clone(), seeded.account.clone()).await;
 
                     verify_asset_info(class_id_labor, asset_id_labor, seeded.seed.clone()).await;
@@ -607,14 +597,6 @@ async fn setup(
 ) -> Result<Config, RequestError> {
     let result: Result<Config, _> =
         fula_contract_req("setup", ()).await;
-    return result;
-}
-
-async fn refund(
-    input: RefundInput,
-) -> Result<RefundOutput, RequestError> {
-    let result: Result<RefundOutput, _> =
-        fula_contract_req("refund", input).await;
     return result;
 }
 
