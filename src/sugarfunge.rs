@@ -337,6 +337,22 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Se
         info!("CREATION: created: {:#?}", create_asset);
     }
 }
+async fn is_node_online() -> Result<bool, RequestError> {
+    let client = reqwest::Client::new();
+    let url = "https://ping.node3.functionyard.fula.network";
+    match client.head(url).send().await {
+        Ok(response) => {
+            // Assuming that a successful response indicates the node is online.
+            // You might need to adjust the logic based on the actual API behavior.
+            Ok(response.status().is_success())
+        },
+        Err(e) => Err(RequestError {
+            message: json!(format!("{:#?}", e)),
+            description: "Node status check failed.".into(),
+        }),
+    }
+}
+
 
 pub fn launch(tokio_runtime: Res<TokioRuntime>) {
     let rt = tokio_runtime.runtime.clone();
@@ -397,8 +413,54 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                     verify_asset_info(class_id_challenge, asset_id_challenge, seeded.seed.clone()).await;
     
                     //Executing the Calculation, Mint and Update of rewards
+                    let mut was_node_online = false;
     
                     for cycle in 1..config.total_cyles {
+                        // Check the current online status of the node.
+                        let is_online = match is_node_online().await {
+                            Ok(status) => status,
+                            Err(e) => {
+                                // Handle the error (e.g., by logging or retrying later).
+                                eprintln!("Error checking node status: {:?}", e);
+                                continue; // Skip this cycle or handle as needed.
+                            }
+                        };
+                        if is_online {
+                            if !was_node_online {
+                                let account_tmp: Account = seeded.account.clone();
+                                let validator_activate_req = validator::AddValidatorInput {
+                                    seed: seeded.seed.clone(),
+                                    validator_id: account_tmp,
+                                };
+                                let result = fula_sugarfunge_req("validator/activate", validator_activate_req).await;
+                                match result {
+                                    Ok(output) if output.validator_id == account_tmp => {
+                                        // Successfully activated the validator, proceed as normal.
+                                        was_node_online = true;
+                                    },
+                                    _ => {
+                                        // Failed to activate the validator, consider the node as still offline.
+                                        was_node_online = false;
+                                        println!(
+                                            "DAY: {} CYCLE: {} Was offline, activation failed.",
+                                            cycle / config.cycles_advance as u64,
+                                            cycle
+                                        );
+                                        tokio::time::sleep(time::Duration::from_millis(config.time_between_cycles_miliseconds)).await;
+                                        continue;
+                                    }
+                                }
+                            }
+                        } else {
+                            was_node_online = false;
+                            println!(
+                                "DAY: {} CYCLE: {} Was offline",
+                                cycle / config.cycles_advance as u64,
+                                cycle
+                            );
+                            tokio::time::sleep(time::Duration::from_millis(config.time_between_cycles_miliseconds)).await;
+                            continue;
+                        }
                         let mut daily_rewards = 0.0;
     
                         // Get the current pool_id of the user
