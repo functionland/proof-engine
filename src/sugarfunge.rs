@@ -415,6 +415,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                 let mut log_info = LogInfo{ day: 0, cycle: 0, status: Status::NotApproved, additional_info: "Validator Not Approved".into() };
 
                 for cycle in 1..config.total_cyles {
+                    let mut daily_rewards = 0.0;
                     log_info.day = cycle / config.cycles_advance as u64;
                     log_info.cycle = cycle;
                     // Check the current online status of the node.
@@ -480,7 +481,6 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                                 log_info.status = Status::Online;
                                 log_info.additional_info = "Validator Ok".into();
                             }
-                            let mut daily_rewards = 0.0;
         
                             // Get the current pool_id of the user
                             let pool_id = get_account_pool_id(seeded.account.clone()).await;
@@ -586,9 +586,12 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                                     }
                                 }
                             }
-                            print_log_info(&log_info,daily_rewards,config.time_between_cycles_miliseconds).await;
                         }
+                    } else {
+                        log_info.status = Status::Offline;
+                        log_info.additional_info = "Couldn't reach the API".into();
                     }
+                    print_log_info(&log_info,daily_rewards,config.time_between_cycles_miliseconds).await;
                 }
             }
         });
