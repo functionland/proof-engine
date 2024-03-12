@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time;
 use structopt::StructOpt;
-use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, *};
+use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, validator::*,*};
 
 #[derive(Deref)]
 pub struct Sender<T>(pub channel::Sender<T>);
@@ -430,11 +430,11 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                                 let account_tmp: Account = seeded.account.clone();
                                 let validator_activate_req = validator::AddValidatorInput {
                                     seed: seeded.seed.clone(),
-                                    validator_id: account_tmp,
+                                    validator_id: String::from(&account_tmp).into(),
                                 };
-                                let result = fula_sugarfunge_req("validator/activate", validator_activate_req).await;
+                                let result = activate_validator(validator_activate_req).await;
                                 match result {
-                                    Ok(output) if output.validator_id == account_tmp => {
+                                    Ok(output) => {
                                         // Successfully activated the validator, proceed as normal.
                                         was_node_online = true;
                                     },
@@ -647,6 +647,14 @@ pub async fn calculate_rewards(
         }
     }
     return rewards;
+}
+
+async fn activate_validator(
+    input: AddValidatorInput,
+) -> Result<AddValidatorOutput, RequestError> {
+    let result: Result<AddValidatorOutput, _> =
+        fula_sugarfunge_req("validator/activate", input).await;
+    return result;
 }
 
 async fn convert_to_validator(
