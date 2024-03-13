@@ -1,6 +1,9 @@
 use crate::{common::TokioRuntime, config, opts::Opt};
 use bevy::prelude::*;
-use contract_api_types::{config::Config, calls::{ConvertToValidatorInput, ConvertToValidatorOutput}};
+use contract_api_types::{
+    calls::{ConvertToValidatorInput, ConvertToValidatorOutput},
+    config::Config,
+};
 use crossbeam::channel;
 use dotenv::dotenv;
 use ipfs_api::IpfsApi;
@@ -9,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time;
 use structopt::StructOpt;
-use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, *};
+use sugarfunge_api_types::{account::*, challenge::*, fula::*, primitives::*, validator::*, *};
 
 #[derive(Deref)]
 pub struct Sender<T>(pub channel::Sender<T>);
@@ -20,6 +23,22 @@ pub struct Receiver<T>(pub channel::Receiver<T>);
 pub struct RequestError {
     pub message: serde_json::Value,
     pub description: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Status {
+    Online,
+    Offline,
+    NotApproved
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LogInfo {
+    pub day: u64,
+    pub cycle: u64,
+    pub status: Status,
+    pub additional_info: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -338,6 +357,18 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Se
     }
 }
 
+async fn print_log_info(info: &LogInfo, rewards: f64, time:u64){
+    println!(
+        "DAY: {} CYCLE: {} REWARDS: {}  STATUS:{:#?}  INFO: {}",
+        info.day,
+        info.cycle,
+        rewards,
+        info.status,
+        info.additional_info
+    );
+    tokio::time::sleep(time::Duration::from_millis(time)).await;
+}
+
 pub fn launch(tokio_runtime: Res<TokioRuntime>) {
     let rt = tokio_runtime.runtime.clone();
 
@@ -346,7 +377,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
         rt.block_on(async move {
             let cmd_opts = Opt::from_args();
 
-            if let Ok (config) = setup().await {
+            if let Ok(config) = setup().await {
                 let class_id_labor = ClassId::from(config.labor_token_class_id);
                 let asset_id_labor = AssetId::from(config.labor_token_class_id);
                 let class_id_challenge = ClassId::from(config.challenge_token_class_id);
@@ -381,138 +412,186 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                 info!("VERIFICATION: User Seed {:?}", seeded.seed);
                 info!("VERIFICATION: User Account {:?}", seeded.account);
 
-                if let Ok(_) = convert_to_validator(ConvertToValidatorInput { seed: seeded.seed.to_string(), aura_account: cmd_opts.aura.to_string(), grandpa_account: cmd_opts.grandpa.to_string() }).await{
-                    register_account(seeded.account.clone()).await;
-                    verify_class_info(class_id_labor, seeded.seed.clone(), seeded.account.clone()).await;
+                let mut log_info = LogInfo{ day: 0, cycle: 0, status: Status::NotApproved, additional_info: "Validator Not Approved".into() };
 
-                    verify_asset_info(class_id_labor, asset_id_labor, seeded.seed.clone()).await;
-    
-                    verify_class_info(
-                        class_id_challenge,
-                        seeded.seed.clone(),
-                        seeded.account.clone(),
-                    )
-                    .await;
-    
-                    verify_asset_info(class_id_challenge, asset_id_challenge, seeded.seed.clone()).await;
-    
-                    //Executing the Calculation, Mint and Update of rewards
-    
-                    for cycle in 1..config.total_cyles {
-                        let mut daily_rewards = 0.0;
-    
-                        // Get the current pool_id of the user
-                        let pool_id = get_account_pool_id(seeded.account.clone()).await;
-    
-                        // Validate the manifests of the user on-chain, also the invalid manifests are going to be remove from the chain
-                        let user_manifests = validate_current_manifests(VerifyManifestsInput {
-                            seed: seeded.seed.clone(),
-                        })
-                        .await;
-                        info!("STEP 1: VERIFY USER MANIFESTS {:#?}", user_manifests);
-    
-                        // Verify if there is a file in the chain storage that the user is storaging where the size is unknown on-chain
-                        if let Ok(verify_file_size_response) = verify_file_size(VerifyFileSizeInput {
-                            account: seeded.account.clone(),
-                        })
-                        .await
-                        {
-                            if verify_file_size_response.cids.len() > 0 {
-                                let result = get_file_sizes(verify_file_size_response.cids).await;
-                                if let Some(pool_id) = pool_id {
-                                    let _result = provide_file_size(ProvideFileSizeInput {
-                                        seed: seeded.seed.clone(),
-                                        pool_id,
-                                        cids: result.0,
-                                        sizes: result.1,
-                                    })
-                                    .await;
-                                };
+                for cycle in 1..config.total_cyles {
+                    let mut daily_rewards = 0.0;
+                    log_info.day = cycle / config.cycles_advance as u64;
+                    log_info.cycle = cycle;
+                    // Check the current online status of the node.
+                    if let Ok(is_online) = is_validator_online(IsValidatorInput {
+                        account: seeded.account.clone(),
+                    })
+                    .await
+                    {
+                        if !is_online.approved {
+                            if let Ok(_) = convert_to_validator(ConvertToValidatorInput {
+                                seed: seeded.seed.to_string(),
+                                aura_account: cmd_opts.aura.to_string(),
+                                grandpa_account: cmd_opts.grandpa.to_string(),
+                            })
+                            .await
+                            {
+                                log_info.status = Status::Online;
+                                log_info.additional_info = "Validator Approved".into();
+                                register_account(seeded.account.clone()).await;
+                                verify_class_info(
+                                    class_id_labor,
+                                    seeded.seed.clone(),
+                                    seeded.account.clone(),
+                                )
+                                .await;
+
+                                verify_asset_info(
+                                    class_id_labor,
+                                    asset_id_labor,
+                                    seeded.seed.clone(),
+                                )
+                                .await;
+
+                                verify_class_info(
+                                    class_id_challenge,
+                                    seeded.seed.clone(),
+                                    seeded.account.clone(),
+                                )
+                                .await;
+
+                                verify_asset_info(
+                                    class_id_challenge,
+                                    asset_id_challenge,
+                                    seeded.seed.clone(),
+                                )
+                                .await;
                             }
-                        }
-    
-                        // Verify if there is an Open challenge for the user, if there is a challenge verify the cid content of the user
-                        if let Ok(verify_pending_challenge_response) =
-                            verify_pending_challenge(VerifyPendingChallengeInput {
+                            print_log_info(&log_info,0.0,config.time_between_cycles_miliseconds).await;
+                        } else {
+                            if is_online.offline {
+                                    log_info.status = Status::Offline;
+                                    if let Ok(_) = activate_validator(AddValidatorInput{
+                                        seed: seeded.seed.clone(),
+                                        validator_id: String::from(&seeded.account.clone()).into(),
+                                    }).await{
+                                        log_info.status = Status::Online;
+                                        log_info.additional_info = "Validator Activated".into();
+                                    } else {
+                                        log_info.additional_info = "Activation Failed".into();
+                                        print_log_info(&log_info,0.0,config.time_between_cycles_miliseconds).await;
+                                    }
+                            } else {
+                                log_info.status = Status::Online;
+                                log_info.additional_info = "Validator Ok".into();
+                            }
+        
+                            // Get the current pool_id of the user
+                            let pool_id = get_account_pool_id(seeded.account.clone()).await;
+        
+                            // Validate the manifests of the user on-chain, also the invalid manifests are going to be remove from the chain
+                            let user_manifests = validate_current_manifests(VerifyManifestsInput {
+                                seed: seeded.seed.clone(),
+                            })
+                            .await;
+                            info!("STEP 1: VERIFY USER MANIFESTS {:#?}", user_manifests);
+        
+                            // Verify if there is a file in the chain storage that the user is storaging where the size is unknown on-chain
+                            if let Ok(verify_file_size_response) = verify_file_size(VerifyFileSizeInput {
                                 account: seeded.account.clone(),
                             })
                             .await
-                        {
-                            if verify_pending_challenge_response.pending {
-                                if let Some(pool_id) = pool_id {
-                                    if let Ok(value) = get_manifests_storage_data(
-                                        Some(pool_id),
-                                        Some(seeded.account.clone()),
-                                    )
-                                    .await
-                                    {
-                                        let _result = verify_challenge(VerifyChallengeInput {
+                            {
+                                if verify_file_size_response.cids.len() > 0 {
+                                    let result = get_file_sizes(verify_file_size_response.cids).await;
+                                    if let Some(pool_id) = pool_id {
+                                        let _result = provide_file_size(ProvideFileSizeInput {
                                             seed: seeded.seed.clone(),
-                                            pool_id: pool_id,
-                                            cids: get_vec_cid_from_manifest_storer_data(value.manifests),
-                                            class_id: class_id_challenge,
-                                            asset_id: asset_id_challenge,
+                                            pool_id,
+                                            cids: result.0,
+                                            sizes: result.1,
                                         })
                                         .await;
-                                    }
-                                };
+                                    };
+                                }
                             }
-                        }
-    
-                        // Generate a random challenge each cycle
-                        if let Ok(generated_challenge) = generate_challenge(GenerateChallengeInput {
-                            seed: seeded.seed.clone(),
-                        })
-                        .await
-                        {
-                            info!("STEP 2: GENERATED CHALLENGE {:#?}", generated_challenge);
-                        } else {
-                            info!("STEP 2: NO ACCOUNTS TO CHALLENGE");
-                        }
-    
-                        // Get all the manifests from the network on-chain
-                        let all_manifests = get_manifests(None, None, None).await;
-    
-                        // Verify that the Result is the expected value
-                        if let Ok(current_all_manifests) = all_manifests {
-                            // If there are no manifest in the network the calculation is skipped
-                            if current_all_manifests.manifests.len() > 0 {
-                                // Get the cummulative size of all the network manifets
-                                let network_size = get_cumulative_size(&current_all_manifests).await as f64;
-    
-                                // Calculate the labor tokens corresponded for the user
-                                let rewards = calculate_daily_rewards(config.clone(), network_size, &seeded).await;
-    
-                                info!("STEP 3: CALCULATE REWARDS:");
-                                info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
-                                info!("  Storage Rewards: {:?}", rewards.daily_storage_rewards);
-    
-                                daily_rewards += rewards.daily_storage_rewards;
-                                daily_rewards += rewards.daily_mining_rewards;
-    
-                                //MINT DAILY REWARDS
-                                if let Some(_pool_id) = pool_id {
-                                    let mint = mint_labor_tokens(MintLaborTokensInput {
-                                        seed: seeded.seed.clone(),
-                                        amount: Balance::try_from(daily_rewards as u128).unwrap(),
-                                        class_id: class_id_labor,
-                                        asset_id: asset_id_labor,
-                                    })
-                                    .await;
-                                    info!("STEP 4: MINT LABOR TOKENS: {:#?}", mint);
-                                } else {
-                                    info!("STEP 4: ERROR WHEN TRIED TO MINT LABOR TOKENS: INVALID POOL_ID");
+        
+                            // Verify if there is an Open challenge for the user, if there is a challenge verify the cid content of the user
+                            if let Ok(verify_pending_challenge_response) =
+                                verify_pending_challenge(VerifyPendingChallengeInput {
+                                    account: seeded.account.clone(),
+                                })
+                                .await
+                            {
+                                if verify_pending_challenge_response.pending {
+                                    if let Some(pool_id) = pool_id {
+                                        if let Ok(value) = get_manifests_storage_data(
+                                            Some(pool_id),
+                                            Some(seeded.account.clone()),
+                                        )
+                                        .await
+                                        {
+                                            let _result = verify_challenge(VerifyChallengeInput {
+                                                seed: seeded.seed.clone(),
+                                                pool_id: pool_id,
+                                                cids: get_vec_cid_from_manifest_storer_data(value.manifests),
+                                                class_id: class_id_challenge,
+                                                asset_id: asset_id_challenge,
+                                            })
+                                            .await;
+                                        }
+                                    };
+                                }
+                            }
+        
+                            // Generate a random challenge each cycle
+                            if let Ok(generated_challenge) = generate_challenge(GenerateChallengeInput {
+                                seed: seeded.seed.clone(),
+                            })
+                            .await
+                            {
+                                info!("STEP 2: GENERATED CHALLENGE {:#?}", generated_challenge);
+                            } else {
+                                info!("STEP 2: NO ACCOUNTS TO CHALLENGE");
+                            }
+        
+                            // Get all the manifests from the network on-chain
+                            let all_manifests = get_manifests(None, None, None).await;
+        
+                            // Verify that the Result is the expected value
+                            if let Ok(current_all_manifests) = all_manifests {
+                                // If there are no manifest in the network the calculation is skipped
+                                if current_all_manifests.manifests.len() > 0 {
+                                    // Get the cummulative size of all the network manifets
+                                    let network_size = get_cumulative_size(&current_all_manifests).await as f64;
+        
+                                    // Calculate the labor tokens corresponded for the user
+                                    let rewards = calculate_daily_rewards(config.clone(), network_size, &seeded).await;
+        
+                                    info!("STEP 3: CALCULATE REWARDS:");
+                                    info!("  Mining Rewards: {:?}", rewards.daily_mining_rewards);
+                                    info!("  Storage Rewards: {:?}", rewards.daily_storage_rewards);
+        
+                                    daily_rewards += rewards.daily_storage_rewards;
+                                    daily_rewards += rewards.daily_mining_rewards;
+        
+                                    //MINT DAILY REWARDS
+                                    if let Some(_pool_id) = pool_id {
+                                        let mint = mint_labor_tokens(MintLaborTokensInput {
+                                            seed: seeded.seed.clone(),
+                                            amount: Balance::try_from(daily_rewards as u128).unwrap(),
+                                            class_id: class_id_labor,
+                                            asset_id: asset_id_labor,
+                                        })
+                                        .await;
+                                        info!("STEP 4: MINT LABOR TOKENS: {:#?}", mint);
+                                    } else {
+                                        info!("STEP 4: ERROR WHEN TRIED TO MINT LABOR TOKENS: INVALID POOL_ID");
+                                    }
                                 }
                             }
                         }
-                        println!(
-                            "DAY: {} CYCLE: {} REWARDS: {}",
-                            cycle / config.cycles_advance as u64,
-                            cycle,
-                            daily_rewards
-                        );
-                        tokio::time::sleep(time::Duration::from_millis(config.time_between_cycles_miliseconds)).await;
+                    } else {
+                        log_info.status = Status::Offline;
+                        log_info.additional_info = "Couldn't reach the API".into();
                     }
+                    print_log_info(&log_info,daily_rewards,config.time_between_cycles_miliseconds).await;
                 }
             }
         });
@@ -587,6 +666,18 @@ pub async fn calculate_rewards(
     return rewards;
 }
 
+async fn is_validator_online(input: IsValidatorInput) -> Result<IsValidatorOutput, RequestError> {
+    let result: Result<IsValidatorOutput, _> =
+        fula_sugarfunge_req("validator/is_online", input).await;
+    return result;
+}
+
+async fn activate_validator(input: AddValidatorInput) -> Result<AddValidatorOutput, RequestError> {
+    let result: Result<AddValidatorOutput, _> =
+        fula_sugarfunge_req("validator/activate", input).await;
+    return result;
+}
+
 async fn convert_to_validator(
     input: ConvertToValidatorInput,
 ) -> Result<ConvertToValidatorOutput, RequestError> {
@@ -595,10 +686,8 @@ async fn convert_to_validator(
     return result;
 }
 
-async fn setup(
-) -> Result<Config, RequestError> {
-    let result: Result<Config, _> =
-        fula_contract_req("setup", ()).await;
+async fn setup() -> Result<Config, RequestError> {
+    let result: Result<Config, _> = fula_contract_req("setup", ()).await;
     return result;
 }
 

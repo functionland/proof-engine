@@ -31,7 +31,7 @@ crossbeam = "0.8"
 ipfs-api-backend-hyper = { version = "0.5.0" }
 
 reqwest = { version = "0.11", features = ["json"] }
-sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "1bbc8b26656d5297a6fc799e473f502e7bb6c99e" }
+sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "3dfe375a4e3d3762b33fba2aaeef3e97ee6455c5" }
 contract-api-types = {git = "https://github.com/functionland/fula-contract-api.git", rev = "00c23786bdaf0c60ec601d8b1207c52fa49d7947"}
 pcd-rs = "0.8.0"
 bytes = "1.1"
