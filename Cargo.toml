@@ -28,7 +28,7 @@ tokio = { default-features = false, features = [
 ], version = "1" }
 futures = { version = "0.3" }
 crossbeam = "0.8"
-ipfs-api-backend-hyper = { version = "0.5.0" }
+ipfs-api-backend-hyper = { version = "0.6.0" }
 
 reqwest = { version = "0.11", features = ["json"] }
 sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "3dfe375a4e3d3762b33fba2aaeef3e97ee6455c5" }
