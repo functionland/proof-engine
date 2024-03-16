@@ -3658,8 +3658,7 @@ dependencies = [
 [[package]]
 name = "ipfs-api-backend-hyper"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a9d131b408b4caafe1e7c00d410a09ad3eb7e3ab68690cf668e86904b2176b4"
+source = "git+https://github.com/ferristseng/rust-ipfs-api?rev=6e6e97c5530103eed8ccdf7d77042dbee7db9129#6e6e97c5530103eed8ccdf7d77042dbee7db9129"
 dependencies = [
  "async-trait",
  "base64 0.13.1",
@@ -3675,8 +3674,7 @@ dependencies = [
 [[package]]
 name = "ipfs-api-prelude"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b74065805db266ba2c6edbd670b23c4714824a955628472b2e46cc9f3a869cb"
+source = "git+https://github.com/ferristseng/rust-ipfs-api?rev=6e6e97c5530103eed8ccdf7d77042dbee7db9129#6e6e97c5530103eed8ccdf7d77042dbee7db9129"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5276,7 +5274,7 @@ checksum = "d135ede8821cf6376eb7a64148901e1690b788c11ae94dc297ae917dbc91dc0e"
 
 [[package]]
 name = "proof-engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "bevy",
