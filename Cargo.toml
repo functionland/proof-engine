@@ -28,7 +28,7 @@ tokio = { default-features = false, features = [
 ], version = "1" }
 futures = { version = "0.3" }
 crossbeam = "0.8"
-ipfs-api-backend-hyper = { version = "0.6.0" }
+ipfs-api-backend-hyper = { git = "https://github.com/ferristseng/rust-ipfs-api", rev = "6e6e97c5530103eed8ccdf7d77042dbee7db9129" }
 
 reqwest = { version = "0.11", features = ["json"] }
 sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "3dfe375a4e3d3762b33fba2aaeef3e97ee6455c5" }
