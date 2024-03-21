@@ -357,12 +357,13 @@ async fn verify_asset_info(class_id: ClassId, asset_id: AssetId, seeded_seed: Se
     }
 }
 
-async fn print_log_info(info: &LogInfo, rewards: f64, time:u64){
+async fn print_log_info(info: &LogInfo, cycle_rewards: f64,total_rewards:f64, time:u64){
     println!(
-        "DAY: {} CYCLE: {} REWARDS: {}  STATUS:{:#?}  INFO: {}",
+        "DAY: {} CYCLE: {} REWARDS FOR CYCLE: {}  TOTAL_REWARDS CLAIMED: {}  STATUS:{:#?}  INFO: {}",
         info.day,
         info.cycle,
-        rewards,
+        cycle_rewards,
+        total_rewards,
         info.status,
         info.additional_info
     );
@@ -414,6 +415,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
 
                 let mut log_info = LogInfo{ day: 0, cycle: 0, status: Status::NotApproved, additional_info: "Validator Not Approved".into() };
 
+                let mut total_rewards = 0.0;
                 for cycle in 1..config.total_cyles {
                     let mut daily_rewards = 0.0;
                     log_info.day = cycle / config.cycles_advance as u64;
@@ -463,7 +465,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                                 )
                                 .await;
                             }
-                            print_log_info(&log_info,0.0,config.time_between_cycles_miliseconds).await;
+                            print_log_info(&log_info,0.0,total_rewards,config.time_between_cycles_miliseconds).await;
                         } else {
                             if is_online.offline {
                                     log_info.status = Status::Offline;
@@ -475,7 +477,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                                         log_info.additional_info = "Validator Activated".into();
                                     } else {
                                         log_info.additional_info = "Activation Failed".into();
-                                        print_log_info(&log_info,0.0,config.time_between_cycles_miliseconds).await;
+                                        print_log_info(&log_info,0.0,total_rewards,config.time_between_cycles_miliseconds).await;
                                     }
                             } else {
                                 log_info.status = Status::Online;
@@ -570,6 +572,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
         
                                     daily_rewards += rewards.daily_storage_rewards;
                                     daily_rewards += rewards.daily_mining_rewards;
+                                    total_rewards += daily_rewards;
         
                                     //MINT DAILY REWARDS
                                     if let Some(_pool_id) = pool_id {
@@ -591,7 +594,7 @@ pub fn launch(tokio_runtime: Res<TokioRuntime>) {
                         log_info.status = Status::Offline;
                         log_info.additional_info = "Couldn't reach the API".into();
                     }
-                    print_log_info(&log_info,daily_rewards,config.time_between_cycles_miliseconds).await;
+                    print_log_info(&log_info,daily_rewards,total_rewards, config.time_between_cycles_miliseconds).await;
                 }
             }
         });
