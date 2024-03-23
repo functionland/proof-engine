@@ -31,7 +31,7 @@ crossbeam = "0.8"
 ipfs-api-backend-hyper = { git = "https://github.com/ferristseng/rust-ipfs-api", rev = "6e6e97c5530103eed8ccdf7d77042dbee7db9129" }
 
 reqwest = { version = "0.11", features = ["json"] }
-sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "28d9a0da16add1b65942d5e344d8782719360029" }
-contract-api-types = {git = "https://github.com/functionland/fula-contract-api.git", rev = "3ee5c869e38614baf9c729a5a1673f433589ac5a"}
+sugarfunge-api-types = { git = "https://github.com/functionland/sugarfunge-api.git", rev = "a79ed2f6e896d94ab99618e1e61e30c457cd8438" }
+contract-api-types = {git = "https://github.com/functionland/fula-contract-api.git", rev = "265a66c0940351bb53bb776dd2e8a61fbf97cb91"}
 pcd-rs = "0.8.0"
 bytes = "1.1"
