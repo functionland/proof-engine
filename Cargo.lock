@@ -1793,7 +1793,7 @@ checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
 [[package]]
 name = "contract-api-types"
 version = "0.1.0"
-source = "git+https://github.com/functionland/fula-contract-api.git?rev=3ee5c869e38614baf9c729a5a1673f433589ac5a#3ee5c869e38614baf9c729a5a1673f433589ac5a"
+source = "git+https://github.com/functionland/fula-contract-api.git?rev=265a66c0940351bb53bb776dd2e8a61fbf97cb91#265a66c0940351bb53bb776dd2e8a61fbf97cb91"
 dependencies = [
  "serde",
  "serde_json",
@@ -7361,7 +7361,7 @@ dependencies = [
 [[package]]
 name = "sugarfunge-api-types"
 version = "0.1.0"
-source = "git+https://github.com/functionland/sugarfunge-api.git?rev=28d9a0da16add1b65942d5e344d8782719360029#28d9a0da16add1b65942d5e344d8782719360029"
+source = "git+https://github.com/functionland/sugarfunge-api.git?rev=a79ed2f6e896d94ab99618e1e61e30c457cd8438#a79ed2f6e896d94ab99618e1e61e30c457cd8438"
 dependencies = [
  "bevy_derive 0.12.1",
  "futures",
