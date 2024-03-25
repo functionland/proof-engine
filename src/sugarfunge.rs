@@ -627,6 +627,8 @@ pub async fn calculate_rewards(
     config: Config,
     manifests: &GetAllManifestsStorerDataOutput,
     network_size: f64,
+    seeded: &SeededAccountOutput,
+    pool_id: Option<PoolId>
 ) -> Rewards {
     let daily_tokens_mining: f64 = config.yearly_tokens as f64 * 0.70 / (12 * 30) as f64;
     let daily_tokens_storage: f64 = config.yearly_tokens as f64 * 0.20 / (12 * 30) as f64;
@@ -637,6 +639,9 @@ pub async fn calculate_rewards(
     };
 
     let client = ipfs_api::IpfsClient::default();
+    
+    // Create a vector to track failed manifests
+    let mut failed_cids: Vec<Cid> = Vec::new();
 
     for manifest in manifests.manifests.iter() {
         info!("  calculate_rewards: manifest {:?}", manifest);
@@ -658,10 +663,40 @@ pub async fn calculate_rewards(
             Err(e) => {
                 // Log the error here
                 warn!("calculate_rewards: pin_ls was not ok: {:?}", e);
+                failed_cids.push(manifest.cid.clone());
+                if let Err(e) = client.block_rm(&String::from(&manifest.cid.clone())).await {
+                    warn!("Failed to remove block for CID {:?}: {:?}", manifest.cid, e);
+                }
             }
         }
     }
+    // Check if there are any failed manifests and remove them
+    // Only proceed if pool_id is Some
+    if !failed_cids.is_empty() && pool_id.is_some() {
+        let seed: Seed = seeded.seed.clone();
+        
+        let removal_input = BatchRemoveStoringManifestInput {
+            seed,
+            pool_id: pool_id.expect("Expected pool_id to be Some"),
+            cid: failed_cids,
+        };
+        
+        match remove_stored_manifest(removal_input).await {
+            Ok(_) => info!("Successfully removed failed manifests"),
+            Err(e) => warn!("Failed to remove stored manifests: {:?}", e),
+        }
+    } else if pool_id.is_none() {
+        // Handle the case where pool_id is None, if necessary
+        // This could involve logging a warning or error, depending on your application's requirements
+        warn!("calculate_rewards: pool_id is None, skipping removal of failed manifests");
+    }
     return rewards;
+}
+
+async fn remove_stored_manifest(input: BatchRemoveStoringManifestInput) -> Result<BatchRemoveStoringManifestOutput, RequestError> {
+    let result: Result<BatchRemoveStoringManifestOutput, _> =
+        fula_sugarfunge_req("fula/manifest/batch_remove_stored_manifest", input).await;
+    return result;
 }
 
 async fn is_validator_online(input: IsValidatorInput) -> Result<IsValidatorOutput, RequestError> {
