@@ -615,7 +615,7 @@ async fn calculate_daily_rewards(
     if let Ok(storer_manifest_data) =
         get_manifests_storage_data(pool_id, Some(seeded.account.clone())).await
     {
-        rewards = calculate_rewards(config, &storer_manifest_data, network_size).await;
+        rewards = calculate_rewards(config, &storer_manifest_data, network_size, seeded, pool_id).await;
 
         return rewards;
     } else {
