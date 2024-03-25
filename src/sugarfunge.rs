@@ -639,30 +639,25 @@ pub async fn calculate_rewards(
     let client = ipfs_api::IpfsClient::default();
 
     for manifest in manifests.manifests.iter() {
+        info!("  calculate_rewards: manifest {:?}", manifest);
         let mut file_participation = 0.0;
-
-        if let Ok(_req) = client
-            .pin_ls(Some(&String::from(&manifest.cid.clone())), None)
-            .await
-        {
-            if let Ok(file_check) = client
-                .block_stat(&String::from(&manifest.cid.clone()))
-                .await
-            {
-                file_participation = file_check.size as f64 / network_size;
-            }
-            // When the active cycles reached {NUMBER_CYCLES_TO_ADVANCE} which is equal to 1 day, the manifest active days are increased and the rewards are calculated
-            if manifest.active_cycles >= config.cycles_advance {
-                let active_days = manifest.active_days + 1;
-
-                // The calculation of the storage rewards
-                rewards.daily_storage_rewards += (1 as f64
-                    / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp()))
-                    * daily_tokens_storage
-                    * file_participation;
-
-                // The calculation of the mining rewards
-                rewards.daily_mining_rewards += daily_tokens_mining as f64 * file_participation;
+    
+        match client.pin_ls(Some(&String::from(&manifest.cid.clone())), None).await {
+            Ok(_req) => {
+                if let Ok(file_check) = client.block_stat(&String::from(&manifest.cid.clone())).await {
+                    file_participation = file_check.size as f64 / network_size;
+                }
+                info!("  calculate_rewards: active_cycles {:?} cycles_advance {:?}", manifest.active_cycles, config.cycles_advance);
+                if manifest.active_cycles >= config.cycles_advance {
+                    let active_days = manifest.active_days + 1;
+                    info!("  calculate_rewards: active_days {:?} file_participation {:?}", active_days, file_participation);
+                    rewards.daily_storage_rewards += (1 as f64 / (1 as f64 + (-0.1 * (active_days - 45) as f64).exp())) * daily_tokens_storage * file_participation;
+                    rewards.daily_mining_rewards += daily_tokens_mining as f64 * file_participation;
+                }
+            },
+            Err(e) => {
+                // Log the error here
+                warn!("calculate_rewards: pin_ls was not ok: {:?}", e);
             }
         }
     }
